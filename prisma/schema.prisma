@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum AccountType {
+  CUSTOMER
+  SHOP
+}
+
+model User {
+  id       String @id @default(uuid())
+  name     String
+  email    String @unique
+  password String
+
+  phone String
+
+  role        Role        @default(USER)
+  accountType AccountType
+
+  walletToken String? @unique @default(uuid())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  storeId String? @unique
+  store   Store?  @relation(fields: [storeId], references: [id])
+
+  receipts Receipt[]
+}
+
+model Store {
+  id      String  @id @default(uuid())
+  name    String
+  logoUrl String?
+
+  user User?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  devices Device[]
+}
+
+model Device {
+  id        String   @id @default(uuid())
+  name      String
+  apiKey    String   @unique @default(uuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  receipts Receipt[]
+}
+
+enum ReceiptStatus {
+  PENDING
+  ASSIGNED
+}
+
+model Receipt {
+  id String @id @default(uuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  rawData  String
+  aiOutput Json?
+
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id])
+
+  status ReceiptStatus @default(PENDING)
+
+  total Decimal?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lineItems LineItem[]
+}
+
+model LineItem {
+  id         String    @id @default(uuid())
+  receiptId  String
+  receipt    Receipt   @relation(fields: [receiptId], references: [id])
+  name       String
+  quantity   Decimal
+  unitPrice  Decimal
+  totalPrice Decimal
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+}
+
+model Category {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  lineItems LineItem[]
+}
