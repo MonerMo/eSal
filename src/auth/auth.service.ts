@@ -1,4 +1,47 @@
-import { Injectable } from '@nestjs/common';
-
+import { ConflictException, Injectable } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+import { SignupDto } from './DTO/signup.dto';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { Prisma } from 'generated/prisma/client';
 @Injectable()
-export class AuthService {}
+export class AuthService {
+  constructor(private prismaRepo: PrismaService) {}
+  async signup(signupRequest: SignupDto) {
+    //first check if there is account exists with
+    //the same email
+    //after that if exists return email already exists
+    //if not , now hash the password
+    //check account type if SHOP , we will have nested write
+    //if user normal write
+    const hashedPassword = await bcrypt.hash(signupRequest.password, 10);
+
+    try {
+      //write the data here to database and check for error
+      const user = await this.prismaRepo.user.create({
+        data: {
+          email: signupRequest.email,
+          password: hashedPassword,
+          name: signupRequest.name,
+          phone: signupRequest.phone,
+          accountType: signupRequest.accountType,
+          ...(signupRequest.accountType === 'SHOP' && {
+            store: { create: { name: signupRequest.storeName! } },
+          }),
+        },
+        omit: { password: true },
+      });
+      return user;
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'An Account with this email already exits.',
+        );
+      } else {
+        throw new Error('Account Creation Failed');
+      }
+    }
+  }
+}
