@@ -10,22 +10,22 @@ import { AccountType } from 'generated/prisma/enums';
 
 export class SignupDto {
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsString()
   @MinLength(8)
-  password: string;
+  password!: string;
 
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsString()
   @IsNotEmpty()
-  phone: string;
+  phone!: string;
 
   @IsEnum(AccountType)
-  accountType: AccountType;
+  accountType!: AccountType;
 
   @ValidateIf((dto: SignupDto) => dto.accountType === AccountType.SHOP)
   @IsString()

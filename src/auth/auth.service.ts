@@ -1,11 +1,20 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { SignupDto } from './DTO/signup.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from 'generated/prisma/client';
+import { LoginDto } from './DTO/login.dto';
+import { JwtService } from '@nestjs/jwt';
 @Injectable()
 export class AuthService {
-  constructor(private prismaRepo: PrismaService) {}
+  constructor(
+    private prismaRepo: PrismaService,
+    private jwtService: JwtService,
+  ) {}
   async signup(signupRequest: SignupDto) {
     //first check if there is account exists with
     //the same email
@@ -43,5 +52,23 @@ export class AuthService {
         throw new Error('Account Creation Failed');
       }
     }
+  }
+
+  async login(loginRequest: LoginDto) {
+    //check if the user exists with the given email
+
+    const user = await this.prismaRepo.user.findUnique({
+      where: { email: loginRequest.email },
+    });
+    if (!user) {
+      throw new UnauthorizedException('Invalid Credentials');
+    }
+    const bool = await bcrypt.compare(loginRequest.password, user.password);
+    if (!bool) {
+      throw new UnauthorizedException('Invalid Credentials');
+    }
+    //now create a token and return it
+    const token = this.jwtService.sign({ sub: user.id, role: user.role });
+    return { accessToken: token };
   }
 }
