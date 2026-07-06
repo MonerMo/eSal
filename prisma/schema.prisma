@@ -60,8 +60,9 @@ model Store {
 
 model Device {
   id        String   @id @default(uuid())
-  name      String
+  name      String   @default("New Device")
   apiKey    String   @unique @default(uuid())
+  pairingId String   @unique
   storeId   String
   store     Store    @relation(fields: [storeId], references: [id])
   createdAt DateTime @default(now())
@@ -89,7 +90,11 @@ model Receipt {
 
   status ReceiptStatus @default(PENDING)
 
-  total Decimal?
+  subtotal      Decimal?
+  tax           Decimal?
+  serviceCharge Decimal?
+  discount      Decimal?
+  total         Decimal?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -98,15 +103,16 @@ model Receipt {
 }
 
 model LineItem {
-  id         String    @id @default(uuid())
-  receiptId  String
-  receipt    Receipt   @relation(fields: [receiptId], references: [id])
-  name       String
-  quantity   Decimal
-  unitPrice  Decimal
-  totalPrice Decimal
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id])
+  id              String    @id @default(uuid())
+  receiptId       String
+  receipt         Receipt   @relation(fields: [receiptId], references: [id])
+  name            String
+  quantity        Decimal
+  unitPrice       Decimal
+  totalPrice      Decimal
+  warrantyEndDate DateTime?
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id])
 }
 
 model Category {
