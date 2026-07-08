@@ -6,9 +6,10 @@ import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { DevicesModule } from './devices/devices.module';
+import { PassesModule } from './passes/passes.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, ConfigModule.forRoot({ isGlobal: true }), ReceiptsModule, DevicesModule],
+  imports: [PrismaModule, AuthModule, ConfigModule.forRoot({ isGlobal: true }), ReceiptsModule, DevicesModule, PassesModule],
   controllers: [AppController],
   providers: [AppService],
 })
