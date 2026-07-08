@@ -4,9 +4,9 @@
   "teamIdentifier": "Z44K6B6BA2",
   "organizationName": "eSal",
   "description": "eSal Loyalty Card",
-  "backgroundColor": "rgb(5, 150, 105)",
+  "backgroundColor": "rgb(21, 48, 21)",
   "foregroundColor": "rgb(255, 255, 255)",
-  "labelColor": "rgb(180, 180, 180)",
+  "labelColor": "rgb(183, 229, 163)",
   "storeCard": {
     "headerFields": [],
     "primaryFields": [

@@ -112,6 +112,11 @@ export class PassesService implements OnModuleInit {
         value: 'Customer',
       });
     }
+    pass.setBarcodes({
+      format: 'PKBarcodeFormatQR',
+      message: user.walletToken,
+      messageEncoding: 'iso-8859-1',
+    });
     return pass.getAsBuffer();
   }
 }
