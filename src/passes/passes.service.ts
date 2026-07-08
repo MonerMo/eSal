@@ -91,20 +91,27 @@ export class PassesService implements OnModuleInit {
       },
     );
     pass.primaryFields.pop();
-    pass.primaryFields.push({ key: 'memberName', label, value });
+
+    pass.secondaryFields.push({ key: 'name', label: 'NAME', value: name });
 
     if (user.accountType === 'SHOP') {
       pass.secondaryFields.push({
-        key: 'ownerName',
-        label: 'Store Owner',
-        value: name,
+        key: 'storeName',
+        label: 'STORE',
+        value: user.store!.name,
+      });
+      pass.auxiliaryFields.push({
+        key: 'accountType',
+        label: 'TYPE',
+        value: 'Shop Owner',
+      });
+    } else {
+      pass.auxiliaryFields.push({
+        key: 'accountType',
+        label: 'TYPE',
+        value: 'Customer',
       });
     }
-    pass.setBarcodes({
-      format: 'PKBarcodeFormatQR',
-      message: user.walletToken,
-      messageEncoding: 'iso-8859-1',
-    });
     return pass.getAsBuffer();
   }
 }
