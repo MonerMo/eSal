@@ -7,6 +7,7 @@
   "backgroundColor": "rgb(21, 48, 21)",
   "foregroundColor": "rgb(255, 255, 255)",
   "labelColor": "rgb(183, 229, 163)",
+  "logoText": "Your Centeralized Receipts Solution",
   "storeCard": {
     "headerFields": [],
     "primaryFields": [
