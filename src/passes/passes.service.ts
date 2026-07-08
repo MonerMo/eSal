@@ -116,6 +116,7 @@ export class PassesService implements OnModuleInit {
       format: 'PKBarcodeFormatQR',
       message: user.walletToken,
       messageEncoding: 'iso-8859-1',
+      altText: 'Scan the QR using eSal device',
     });
     return pass.getAsBuffer();
   }
