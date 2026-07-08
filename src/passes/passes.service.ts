@@ -112,6 +112,12 @@ export class PassesService implements OnModuleInit {
         value: 'Customer',
       });
     }
+    pass.headerFields.push({
+      key: 'memberSince',
+      label: 'Member Since',
+      value: user.createdAt,
+      dateStyle: 'PKDateStyleMedium',
+    });
     pass.setBarcodes({
       format: 'PKBarcodeFormatQR',
       message: user.walletToken,
