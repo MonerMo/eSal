@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ReceiptsDto } from './DTO/receipt.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
@@ -77,5 +77,18 @@ export class ReceiptsService {
       console.error('AI parsing failed for receipt', receipt.id, err);
     });
     return receipt;
+  }
+
+  async claimReceiptViaQr(receiptId: string, walletToken: string) {
+    const user = await this.prismaRepo.user.findUnique({
+      where: { walletToken },
+    });
+    if (!user || user.accountType !== 'CUSTOMER') {
+      throw new NotFoundException('No user found for this wallet token');
+    }
+    return this.prismaRepo.receipt.update({
+      where: { id: receiptId },
+      data: { userId: user.id, status: 'ASSIGNED' },
+    });
   }
 }
