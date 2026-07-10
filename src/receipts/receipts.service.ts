@@ -64,11 +64,15 @@ export class ReceiptsService {
   }
 
   async receiptsPosting(receiptsDto: ReceiptsDto, deviceId: string) {
+    //remove null bytes from the rawData before saving
+    //to the db , because the db fires error when it encounters null bytes in the string.
+    const sanitizedRawData = receiptsDto.rawData.replace(/\0/g, '');
+
     //save the receipt first.
     const receipt = await this.prismaRepo.receipt.create({
-      data: { rawData: receiptsDto.rawData, deviceId },
+      data: { rawData: sanitizedRawData, deviceId },
     });
-    this.parseWithAi(receiptsDto.rawData, receipt.id).catch((err) => {
+    this.parseWithAi(sanitizedRawData, receipt.id).catch((err) => {
       //must catch - an unhandled rejection can crash the whole process
       console.error('AI parsing failed for receipt', receipt.id, err);
     });
