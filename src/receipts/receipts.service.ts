@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ReceiptsDto } from './DTO/receipt.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
@@ -83,9 +88,25 @@ export class ReceiptsService {
     const user = await this.prismaRepo.user.findUnique({
       where: { walletToken },
     });
-    if (!user || user.accountType !== 'CUSTOMER') {
+    if (!user) {
       throw new NotFoundException('No user found for this wallet token');
     }
+
+    if (user.accountType !== 'CUSTOMER') {
+      throw new ForbiddenException('only customer accounts can claim receipts');
+    }
+    const receipt = await this.prismaRepo.receipt.findUnique({
+      where: { id: receiptId },
+    });
+
+    if (!receipt) {
+      throw new NotFoundException('Receipt not found');
+    }
+
+    if (receipt.status === 'ASSIGNED') {
+      throw new ConflictException('Receipt has already been claimed');
+    }
+
     return this.prismaRepo.receipt.update({
       where: { id: receiptId },
       data: { userId: user.id, status: 'ASSIGNED' },
