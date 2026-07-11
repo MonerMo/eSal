@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod.mjs';
 import { ParsedReceiptSchema } from './ZOD/ParsedReceiptSchema';
+import { Prisma } from '../../generated/prisma/client';
 
 @Injectable()
 export class ReceiptsService {
@@ -116,5 +117,68 @@ export class ReceiptsService {
       where: { id: receiptId },
       data: { userId: user.id, status: 'ASSIGNED' },
     });
+  }
+
+  async getReceipts(
+    userId: string,
+    filters: { category?: string; range?: string; search?: string },
+    page = 1,
+    pageSize = 20,
+  ) {
+    const where: Prisma.ReceiptWhereInput = { userId };
+    if (filters.category && filters.category !== 'All') {
+      where.lineItems = { some: { category: { name: filters.category } } };
+    }
+
+    if (filters.range === 'thisWeek') {
+      const startOfWeek = new Date();
+      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      where.createdAt = { gte: startOfWeek };
+    } else if (filters.range === 'lastMonth') {
+      const now = new Date();
+      where.createdAt = {
+        gte: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+        lt: new Date(now.getFullYear(), now.getMonth(), 1),
+      };
+    }
+
+    if (filters.search) {
+      where.OR = [
+        {
+          device: {
+            store: { name: { contains: filters.search, mode: 'insensitive' } },
+          },
+        },
+        {
+          lineItems: {
+            some: { name: { contains: filters.search, mode: 'insensitive' } },
+          },
+        },
+      ];
+    }
+
+    const [receipts, total] = await Promise.all([
+      this.prismaRepo.receipt.findMany({
+        where,
+        include: {
+          device: { include: { store: true } },
+          lineItems: { include: { category: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prismaRepo.receipt.count({ where }),
+    ]);
+    return {
+      data: receipts,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
   }
 }

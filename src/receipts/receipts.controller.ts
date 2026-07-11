@@ -1,12 +1,38 @@
-import { Body, Controller, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ReceiptsDto } from './DTO/receipt.dto';
 import { DeviceAuthGuard } from './Guards/deviceAuthGuard';
 import { ReceiptsService } from './receipts.service';
 import { ClaimReceiptDto } from './DTO/claim.receipt.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { GetReceiptsQueryDto } from './DTO/get.receipt.query.dto';
 
 @Controller('receipts')
 export class ReceiptsController {
   constructor(private receiptsService: ReceiptsService) {}
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get()
+  getReceipts(@Req() req, @Query() query: GetReceiptsQueryDto) {
+    return this.receiptsService.getReceipts(
+      req.user.userId,
+      {
+        category: query.category,
+        range: query.range,
+        search: query.search,
+      },
+      query.page,
+      query.pageSize,
+    );
+  }
 
   @UseGuards(DeviceAuthGuard)
   @Post()
