@@ -33,7 +33,7 @@ export class ReceiptsService {
         {
           role: 'system',
           content:
-            'You are a receipt parsing assistant that will take raw bytes coming from a raspberry pi that captures raw output from a POS system, and return it parsed into a structured format. For each item, choose the single most appropriate category from the provided list based on what the item actually is — only use "Other" if it genuinely does not fit any of the other categories.',
+            'You are a receipt parsing assistant that will take raw bytes coming from a raspberry pi that captures raw output from a POS system, and return it parsed into a structured format. For each item, choose the single most appropriate category from the provided list based on what the item actually is — only use "Other" if it genuinely does not fit any of the other categories. Only populate paymentMethod and invoiceNo if they clearly appear in the raw receipt text — return null for either if not present, never guess or infer a value.',
         },
         { role: 'user', content: rawData },
       ],
@@ -67,6 +67,8 @@ export class ReceiptsService {
             categoryId: categoryIdByName.get(item.category),
           })),
         },
+        paymentMethod: parsed.paymentMethod,
+        invoiceNo: parsed.invoiceNo,
       },
     });
   }
