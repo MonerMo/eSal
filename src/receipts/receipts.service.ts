@@ -33,7 +33,7 @@ export class ReceiptsService {
         {
           role: 'system',
           content:
-            'You are a receipt parsing assistant that will take raw bytes comming from raspberry pi that catches raw bytes out of POS system and you will return it parsed to a format structure',
+            'You are a receipt parsing assistant that will take raw bytes coming from a raspberry pi that captures raw output from a POS system, and return it parsed into a structured format. For each item, choose the single most appropriate category from the provided list based on what the item actually is — only use "Other" if it genuinely does not fit any of the other categories.',
         },
         { role: 'user', content: rawData },
       ],
@@ -43,6 +43,8 @@ export class ReceiptsService {
     if (!parsed) {
       return; // model couldn't produce valid structured output — leave receipt as raw-only
     }
+    const categories = await this.prismaRepo.category.findMany();
+    const categoryIdByName = new Map(categories.map((c) => [c.name, c.id]));
 
     await this.prismaRepo.receipt.update({
       where: { id: receiptId },
@@ -62,6 +64,7 @@ export class ReceiptsService {
             warrantyEndDate: item.warrantyEndDate
               ? new Date(item.warrantyEndDate)
               : null,
+            categoryId: categoryIdByName.get(item.category),
           })),
         },
       },
