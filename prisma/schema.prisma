@@ -55,6 +55,9 @@ model Store {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  taxId   String?
+
+
   devices Device[]
 }
 
