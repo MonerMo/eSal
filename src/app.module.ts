@@ -10,6 +10,7 @@ import { PassesModule } from './passes/passes.module';
 import { UsersModule } from './users/users.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { InsightsModule } from './insights/insights.module';
+import { ShopModule } from './shop/shop.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { InsightsModule } from './insights/insights.module';
     UsersModule,
     DashboardModule,
     InsightsModule,
+    ShopModule,
   ],
   controllers: [AppController],
   providers: [AppService],
