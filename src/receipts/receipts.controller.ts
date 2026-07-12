@@ -34,6 +34,12 @@ export class ReceiptsController {
     );
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Get(':id')
+  getReceiptById(@Req() req, @Param('id') id: string) {
+    return this.receiptsService.getReceiptById(req.user.userId, id);
+  }
+
   @UseGuards(DeviceAuthGuard)
   @Post()
   receiptsPosting(@Body() receiptsDto: ReceiptsDto, @Req() req) {

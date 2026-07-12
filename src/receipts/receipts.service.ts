@@ -161,9 +161,39 @@ export class ReceiptsService {
     const [receipts, total] = await Promise.all([
       this.prismaRepo.receipt.findMany({
         where,
-        include: {
-          device: { include: { store: true } },
-          lineItems: { include: { category: true } },
+        select: {
+          id: true,
+          subtotal: true,
+          tax: true,
+          serviceCharge: true,
+          discount: true,
+          total: true,
+          paymentMethod: true,
+          invoiceNo: true,
+          status: true,
+          createdAt: true,
+          device: {
+            select: {
+              store: {
+                select: {
+                  name: true,
+                  logoUrl: true,
+                  taxId: true,
+                },
+              },
+            },
+          },
+          lineItems: {
+            select: {
+              id: true,
+              name: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+              warrantyEndDate: true,
+              category: { select: { name: true } },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
@@ -179,6 +209,70 @@ export class ReceiptsService {
         total,
         totalPages: Math.ceil(total / pageSize),
       },
+    };
+  }
+
+  async getReceiptById(userId: string, receiptId: string) {
+    const receipt = await this.prismaRepo.receipt.findUnique({
+      where: { id: receiptId },
+      select: {
+        id: true,
+        userId: true, // selected only to check ownership below, stripped before returning
+        subtotal: true,
+        tax: true,
+        serviceCharge: true,
+        discount: true,
+        total: true,
+        paymentMethod: true,
+        invoiceNo: true,
+        status: true,
+        createdAt: true,
+        device: {
+          select: {
+            store: {
+              select: {
+                name: true,
+                logoUrl: true,
+                taxId: true,
+              },
+            },
+          },
+        },
+        lineItems: {
+          select: {
+            id: true,
+            name: true,
+            quantity: true,
+            unitPrice: true,
+            totalPrice: true,
+            warrantyEndDate: true,
+            category: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    if (!receipt) {
+      throw new NotFoundException('Receipt not found');
+    }
+
+    if (receipt.userId !== userId) {
+      throw new ForbiddenException('This receipt does not belong to you');
+    }
+
+    return {
+      id: receipt.id,
+      subtotal: receipt.subtotal,
+      tax: receipt.tax,
+      serviceCharge: receipt.serviceCharge,
+      discount: receipt.discount,
+      total: receipt.total,
+      paymentMethod: receipt.paymentMethod,
+      invoiceNo: receipt.invoiceNo,
+      status: receipt.status,
+      createdAt: receipt.createdAt,
+      device: receipt.device,
+      lineItems: receipt.lineItems,
     };
   }
 }
