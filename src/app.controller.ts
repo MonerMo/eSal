@@ -15,7 +15,6 @@ export class AppController {
     return { status: 'ok' };
   }
 
-
   @Get('.well-known/apple-app-site-association')
   @Header('Content-Type', 'application/json')
   getAppleAppSiteAssociation() {
@@ -31,5 +30,4 @@ export class AppController {
       },
     };
   }
-}
 }
