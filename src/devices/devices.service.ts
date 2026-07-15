@@ -59,6 +59,14 @@ export class DevicesService {
     if (!device) {
       return { paired: false };
     }
+    if (device.apiKeyRetrieved) {
+      return { paired: true };
+    }
+
+    await this.prismaRepo.device.update({
+      where: { pairingId },
+      data: { apiKeyRetrieved: true },
+    });
     return { paired: true, apiKey: device.apiKey };
   }
 }

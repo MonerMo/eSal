@@ -11,6 +11,7 @@ import { DevicesService } from './devices.service';
 import { PairDeviceQrDto } from './DTO/pair-device-qr.dto';
 import { PairDeviceNfcDto } from './DTO/pair-device-nfc.dto';
 import { PairingStatusDto } from './DTO/pair-status.dto';
+
 import { AuthGuard } from '@nestjs/passport';
 
 @Controller('devices')

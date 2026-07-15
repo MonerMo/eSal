@@ -62,17 +62,19 @@ model Store {
 }
 
 model Device {
-  id        String   @id @default(uuid())
-  name      String   @default("New Device")
-  apiKey    String   @unique @default(uuid())
-  pairingId String   @unique
-  storeId   String
-  store     Store    @relation(fields: [storeId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid())
+  name            String   @default("New Device")
+  apiKey          String   @unique @default(uuid())
+  apiKeyRetrieved Boolean  @default(false)
+  pairingId       String   @unique
+  storeId         String
+  store           Store    @relation(fields: [storeId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   receipts Receipt[]
 }
+
 
 enum ReceiptStatus {
   PENDING

@@ -275,4 +275,36 @@ export class ReceiptsService {
       lineItems: receipt.lineItems,
     };
   }
+
+  async claimReceiptViaNfc(
+    pairingId: string,
+    userId: string,
+    accountType: string,
+  ) {
+    if (accountType !== 'CUSTOMER') {
+      throw new ForbiddenException('Only Customer Accounts can claim receipts');
+    }
+
+    const device = await this.prismaRepo.device.findUnique({
+      where: { pairingId },
+    });
+
+    if (!device) {
+      throw new NotFoundException('Device Not Found');
+    }
+
+    const receipt = await this.prismaRepo.receipt.findFirst({
+      where: { deviceId: device.id, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!receipt) {
+      throw new NotFoundException('No Pending receipt found for this device');
+    }
+
+    return this.prismaRepo.receipt.update({
+      where: { id: receipt.id },
+      data: { userId, status: 'ASSIGNED' },
+    });
+  }
 }

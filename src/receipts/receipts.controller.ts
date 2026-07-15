@@ -12,12 +12,24 @@ import { ReceiptsDto } from './DTO/receipt.dto';
 import { DeviceAuthGuard } from './Guards/deviceAuthGuard';
 import { ReceiptsService } from './receipts.service';
 import { ClaimReceiptDto } from './DTO/claim.receipt.dto';
+import { ClaimReceiptNfcDto } from './DTO/claim.receipt.nfc.dto';
+
 import { AuthGuard } from '@nestjs/passport';
 import { GetReceiptsQueryDto } from './DTO/get.receipt.query.dto';
 
 @Controller('receipts')
 export class ReceiptsController {
   constructor(private receiptsService: ReceiptsService) {}
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('claim/nfc')
+  claimReceiptViaNfc(@Req() req, @Body() dto: ClaimReceiptNfcDto) {
+    return this.receiptsService.claimReceiptViaNfc(
+      dto.pairingId,
+      req.user.userId,
+      req.user.accountType,
+    );
+  }
 
   @UseGuards(AuthGuard('jwt'))
   @Get()
