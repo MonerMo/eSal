@@ -265,4 +265,16 @@ export class ShopService {
       })),
     };
   }
+
+  async getShopDevices(storeId: string) {
+    return this.prismaRepo.device.findMany({
+      where: { storeId },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }

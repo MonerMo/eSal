@@ -38,4 +38,9 @@ export class ShopController {
   getInsights(@Req() req, @Query() query: GetShopInsightsQueryDto) {
     return this.shopService.getShopInsights(req.user.storeId, query.range);
   }
+
+  @Get('devices')
+  getDevices(@Req() req) {
+    return this.shopService.getShopDevices(req.user.storeId);
+  }
 }
