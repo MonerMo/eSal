@@ -84,8 +84,9 @@ enum ReceiptStatus {
 model Receipt {
   id String @id @default(uuid())
 
-  paymentMethod String?
-  invoiceNo     String?
+  paymentMethod   String?
+  invoiceNo       String?
+  transactionDate DateTime?
 
   userId String?
   user   User?   @relation(fields: [userId], references: [id])

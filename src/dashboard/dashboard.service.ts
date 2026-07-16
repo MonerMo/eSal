@@ -65,6 +65,7 @@ export class DashboardService {
             total: true,
             paymentMethod: true,
             invoiceNo: true,
+            transactionDate: true,
             status: true,
             createdAt: true,
             device: {

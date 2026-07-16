@@ -34,7 +34,7 @@ export class ReceiptsService {
         {
           role: 'system',
           content:
-            'You are a receipt parsing assistant that will take raw bytes coming from a raspberry pi that captures raw output from a POS system, and return it parsed into a structured format. For each item, choose the single most appropriate category from the provided list based on what the item actually is — only use "Other" if it genuinely does not fit any of the other categories. Only populate paymentMethod and invoiceNo if they clearly appear in the raw receipt text — return null for either if not present, never guess or infer a value.',
+            'You are a receipt parsing assistant that will take raw bytes coming from a raspberry pi that captures raw output from a POS system, and return it parsed into a structured format. For each item, choose the single most appropriate category from the provided list based on what the item actually is — only use "Other" if it genuinely does not fit any of the other categories. Only populate paymentMethod, invoiceNo, and transactionDate if they clearly appear in the raw receipt text — return null for any of them if not present, never guess or infer a value. When present, return transactionDate as an ISO 8601 date-time string built from whatever date (and time, if present) is printed on the receipt.',
         },
         { role: 'user', content: rawData },
       ],
@@ -56,6 +56,9 @@ export class ReceiptsService {
         serviceCharge: parsed.serviceCharge,
         discount: parsed.discount,
         total: parsed.total,
+        transactionDate: parsed.transactionDate
+          ? new Date(parsed.transactionDate)
+          : null,
         lineItems: {
           create: parsed.items.map((item) => ({
             name: item.name,
@@ -170,6 +173,7 @@ export class ReceiptsService {
           total: true,
           paymentMethod: true,
           invoiceNo: true,
+          transactionDate: true,
           status: true,
           createdAt: true,
           device: {
@@ -225,6 +229,7 @@ export class ReceiptsService {
         total: true,
         paymentMethod: true,
         invoiceNo: true,
+        transactionDate: true,
         status: true,
         createdAt: true,
         device: {
@@ -269,6 +274,7 @@ export class ReceiptsService {
       total: receipt.total,
       paymentMethod: receipt.paymentMethod,
       invoiceNo: receipt.invoiceNo,
+      transactionDate: receipt.transactionDate,
       status: receipt.status,
       createdAt: receipt.createdAt,
       device: receipt.device,

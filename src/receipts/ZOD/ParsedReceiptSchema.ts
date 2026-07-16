@@ -29,4 +29,5 @@ export const ParsedReceiptSchema = z.object({
   total: z.number().nullable(),
   paymentMethod: z.string().nullable(),
   invoiceNo: z.string().nullable(),
+  transactionDate: z.string().nullable(),
 });

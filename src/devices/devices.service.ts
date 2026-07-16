@@ -11,7 +11,11 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class DevicesService {
   constructor(private prismaRepo: PrismaService) {}
 
-  private async createPairedDevice(pairingId: string, storeId: string) {
+  private async createPairedDevice(
+    pairingId: string,
+    storeId: string,
+    apiKeyRetrieved: boolean,
+  ) {
     const existing = await this.prismaRepo.device.findUnique({
       where: { pairingId },
     });
@@ -19,7 +23,9 @@ export class DevicesService {
     if (existing) {
       throw new ConflictException('This device has already been paired');
     }
-    return this.prismaRepo.device.create({ data: { pairingId, storeId } });
+    return this.prismaRepo.device.create({
+      data: { pairingId, storeId, apiKeyRetrieved },
+    });
   }
 
   async pairViaQr(pairDeviceQrDto: PairDeviceQrDto) {
@@ -31,9 +37,12 @@ export class DevicesService {
         'Only Shop Accounts with a store can pair devices',
       );
     }
+    // The apiKey is handed back in this very response, so the Pi already has
+    // it — there's nothing left for /devices/pair/status to protect here.
     return this.createPairedDevice(
       pairDeviceQrDto.pairingId,
       shopOwner.storeId,
+      true,
     );
   }
 
@@ -46,9 +55,12 @@ export class DevicesService {
         'Only shop accounts with a store can pair devices',
       );
     }
+    // The apiKey is NOT in this response (it goes to the phone) — the Pi
+    // still needs to retrieve it later via /devices/pair/status.
     return this.createPairedDevice(
       pairDeviceNfcDto.pairingId,
       shopOwner.storeId,
+      false,
     );
   }
 
