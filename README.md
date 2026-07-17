@@ -94,7 +94,7 @@ flowchart LR
     Parser -->|upload receipt| API --> DB
     API --> Wallet --> PassView
     API --> Insights
-    NFC -->|NDEF Universal Link\n(first-boot pairing)| UL
+    NFC -->|"NDEF Universal Link\n(first-boot pairing)"| UL
     AASA <-.-> UL
 ```
 
