@@ -158,16 +158,20 @@ The puck splits into three printable parts — click any file below on GitHub to
 
 ```
 eSal/
-├── prisma/              # Prisma schema & migrations (User, Store, Device,
-│                         # Receipt, LineItem, Category, Budget, Insight, ChatMessage)
-├── src/                  # NestJS application source
-├── test/                 # Unit & e2e tests
+├── backend/              # NestJS backend
+│   ├── prisma/           # Prisma schema & migrations (User, Store, Device,
+│   │                     # Receipt, LineItem, Category, Budget, Insight, ChatMessage)
+│   ├── src/              # NestJS application source
+│   ├── test/             # Unit & e2e tests
+│   ├── package.json
+│   ├── pnpm-workspace.yaml
+│   └── prisma.config.ts
+├── ios/                  # SwiftUI iOS app
+├── pi/                   # Raspberry Pi puck source (NFC/QR pairing, receipt listener)
 ├── hardware/
 │   └── enclosure/        # 3D-printable case (top lid, main body, bottom lid)
-├── assets/                # README media (banner, renders)
-├── package.json
-├── pnpm-workspace.yaml
-├── prisma.config.ts
+├── assets/               # README media (banner, renders)
+├── docs/                 # Swift integration reference docs
 └── README.md
 ```
 
@@ -284,7 +288,7 @@ This project is released under the [MIT License](LICENSE).
 
 ## 📁 هيكل المستودع
 
-يحتوي المستودع على مجلد `prisma/` لمخطط قاعدة البيانات والترحيلات، ومجلد `src/` لكود خادم NestJS، ومجلد `test/` للاختبارات، بالإضافة إلى مجلد `hardware/enclosure/` لملفات العلبة ثلاثية الأبعاد، ومجلد `assets/` لصور ملف README.
+يحتوي المستودع على مجلد `backend/` وبداخله مجلد `prisma/` لمخطط قاعدة البيانات والترحيلات، ومجلد `src/` لكود خادم NestJS، ومجلد `test/` للاختبارات، بالإضافة إلى مجلد `ios/` لتطبيق SwiftUI، ومجلد `pi/` لكود جهاز Raspberry Pi، ومجلد `hardware/enclosure/` لملفات العلبة ثلاثية الأبعاد، ومجلد `assets/` لصور ملف README، ومجلد `docs/` لوثائق ربط تطبيق iOS.
 
 ## 🚀 البدء السريع
 
