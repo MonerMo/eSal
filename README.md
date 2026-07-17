@@ -215,7 +215,7 @@ This project is released under the [MIT License](LICENSE).
 
 <a name="-نظرة-عامة"></a>
 
-# eSal (سَال)
+# eSal (إيصال)
 
 ### أول نظام مركزي للفواتير في المملكة العربية السعودية
 
