@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>eSal — NFC Tap-to-Pair / Tap-to-Claim: Swift Implementation Guide</title>
+<style>
+  @page { size: A4; margin: 22mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1a1a1a;
+    font-size: 12.5pt;
+    line-height: 1.65;
+  }
+  h1 {
+    font-size: 22pt;
+    margin-bottom: 4px;
+    color: #0f172a;
+  }
+  .subtitle {
+    color: #64748b;
+    font-size: 11pt;
+    margin-top: 0;
+    margin-bottom: 22px;
+  }
+  h2 {
+    font-size: 16pt;
+    margin-top: 32px;
+    padding-bottom: 6px;
+    border-bottom: 3px solid #0f172a;
+    color: #0f172a;
+  }
+  h3 {
+    font-size: 13.5pt;
+    margin-top: 22px;
+    color: #1e293b;
+  }
+  p { margin: 10px 0; }
+  code, .mono {
+    font-family: "SF Mono", Consolas, Menlo, monospace;
+    font-size: 10.8pt;
+  }
+  code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 14px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 10pt;
+    line-height: 1.55;
+    page-break-inside: avoid;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .step-box {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-left: 5px solid #0f172a;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 16px 0;
+  }
+  .note {
+    background: #eff6ff;
+    border-left: 4px solid #3b82f6;
+    padding: 12px 16px;
+    margin: 14px 0;
+    font-size: 11.5pt;
+    border-radius: 4px;
+  }
+  .warn {
+    background: #fef2f2;
+    border-left: 4px solid #ef4444;
+    padding: 12px 16px;
+    margin: 14px 0;
+    font-size: 11.5pt;
+    border-radius: 4px;
+  }
+  .ok {
+    background: #f0fdf4;
+    border-left: 4px solid #22c55e;
+    padding: 12px 16px;
+    margin: 14px 0;
+    font-size: 11.5pt;
+    border-radius: 4px;
+  }
+  .piece-badge {
+    display: inline-block;
+    background: #0f172a;
+    color: #fff;
+    font-weight: 700;
+    font-size: 11pt;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0;
+    font-size: 11pt;
+  }
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 7px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #f1f5f9; }
+  .toc { font-size: 11.5pt; }
+  .toc a { color: #0f172a; text-decoration: none; }
+  hr { border: none; border-top: 1px solid #e2e8f0; margin: 26px 0; }
+  .callout-num {
+    display: inline-block;
+    background: #0f172a;
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 20px;
+    font-size: 10pt;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+</style>
+</head>
+<body>
+
+<h1>eSal — NFC Tap-to-Pair / Tap-to-Claim</h1>
+<p class="subtitle">Everything the iOS app needs to implement so that tapping the store's NFC tag opens eSal directly and completes the right action.</p>
+
+<div class="note">
+<strong>The one idea to hold onto through all of this:</strong> there is exactly <strong>one physical NFC tag</strong> per store, permanently stuck next to the receipt printer's antenna. That tag's content is a plain HTTPS link that changes over its lifetime — first it says "pair me," later it says "claim a receipt." Your app never talks to the tag directly. iOS reads it for you and, once Universal Links are set up, hands your app the URL. Your job is: receive that URL, read two query parameters off it, and call one of two backend endpoints.
+</div>
+
+<h2>Table of Contents</h2>
+<div class="toc">
+<ol>
+<li><a href="#bigpicture">The big picture</a></li>
+<li><a href="#urls">The exact URLs the tag will ever contain</a></li>
+<li><a href="#ul-setup">Step 1 — Universal Links setup in Xcode</a></li>
+<li><a href="#receiving">Step 2 — Receiving and parsing the URL</a></li>
+<li><a href="#endpoints">Step 3 — The two backend calls, in full</a></li>
+<li><a href="#edgecases">Edge cases and UI states to handle</a></li>
+<li><a href="#testing">Testing checklist</a></li>
+</ol>
+</div>
+
+<hr>
+
+<h2 id="bigpicture">1. The big picture</h2>
+
+<p>Here is the full sequence of events, end to end, so the two backend calls below make sense in context:</p>
+
+<div class="step-box">
+<p><span class="callout-num">1</span><strong>A shop owner sets up a new receipt device.</strong> The Raspberry Pi inside it writes a link onto the NFC tag containing a random <code>pairingId</code> and <code>mode=pair</code>.</p>
+
+<p><span class="callout-num">2</span><strong>The shop owner opens the eSal app and taps their phone to the tag.</strong> iOS reads the tag, recognizes the domain as belonging to eSal (because of the Universal Links setup in Step 1 below), and launches your app with that URL instead of opening a browser. Your app reads <code>mode=pair</code>, and calls the backend's <em>pair</em> endpoint using the shop owner's own login. This links that physical device to their store.</p>
+
+<p><span class="callout-num">3</span><strong>The Raspberry Pi notices pairing succeeded within a few seconds</strong> (it's been polling in the background) and — this is important — <strong>rewrites the tag itself</strong>, replacing <code>mode=pair</code> with <code>mode=claim</code>, same <code>pairingId</code>. This happens automatically, once, and you don't need to do anything for it.</p>
+
+<p><span class="callout-num">4</span><strong>From then on, any customer who buys something taps the same tag</strong> to claim their receipt into their own account. Your app reads <code>mode=claim</code> this time, and calls the backend's <em>claim</em> endpoint using the customer's own login.</p>
+</div>
+
+<div class="note">
+Notice the tag only ever has <strong>one</strong> mode live on it at any given time — never both. But your app can't know in advance which one it'll read, since it depends entirely on whether that store's device has completed pairing yet. <strong>Your code must handle both cases every time a tap comes in</strong>, branching purely on the <code>mode</code> value you read out of the URL.
+</div>
+
+<hr>
+
+<h2 id="urls">2. The exact URLs the tag will ever contain</h2>
+
+<p>Both forms share the same host and path — only <code>mode</code> changes:</p>
+
+<table>
+<tr><th>Situation</th><th>URL on the tag</th></tr>
+<tr>
+  <td>Before a device is paired</td>
+  <td><code>https://esal.onrender.com/nfc?pairingId=&lt;uuid&gt;&amp;mode=pair</code></td>
+</tr>
+<tr>
+  <td>After pairing succeeds (auto-rewritten by the Pi)</td>
+  <td><code>https://esal.onrender.com/nfc?pairingId=&lt;uuid&gt;&amp;mode=claim</code></td>
+</tr>
+</table>
+
+<p><code>&lt;uuid&gt;</code> is a standard UUID string, e.g. <code>689a92db-5bc5-4693-b4b6-dda4665398ce</code>. It's a completely opaque identifier as far as your app is concerned — you just read it out and pass it straight through to the backend call, you never need to parse or validate its format yourself.</p>
+
+<div class="warn">
+<strong>There is no real webpage at <code>/nfc</code>.</strong> That path doesn't need to (and currently doesn't) return anything meaningful over plain HTTP — it exists purely as a URL pattern for Universal Links to match against. Once your app is correctly wired up, iOS intercepts the tap before any network request to <code>/nfc</code> is ever made, so this is not something you need to worry about or treat as a bug.
+</div>
+
+<hr>
+
+<h2 id="ul-setup">3. Step 1 — Universal Links setup in Xcode</h2>
+
+<p>This is the part that makes iOS say <strong>"Open in eSal"</strong> instead of handing the tag off to Safari/whatever the default browser is. Without this step, tapping the tag will just open the URL in a browser and nothing in your app runs at all.</p>
+
+<h3>3.1 — Identifiers you'll need (already registered on the Apple Developer account)</h3>
+<table>
+<tr><th>Identifier</th><th>Value</th></tr>
+<tr><td>Team ID</td><td><code>Z44K6B6BA2</code></td></tr>
+<tr><td>Bundle ID</td><td><code>com.Raghad.eSal</code></td></tr>
+<tr><td>Domain</td><td><code>esal.onrender.com</code></td></tr>
+</table>
+<p>Double check your Xcode project's target Bundle Identifier is set to exactly <code>com.Raghad.eSal</code> — Universal Links matching fails silently (no error, it just quietly falls back to Safari) if this doesn't match what the backend serves.</p>
+
+<h3>3.2 — Add the Associated Domains capability</h3>
+<div class="step-box">
+<p>In Xcode: select your app target → <strong>Signing &amp; Capabilities</strong> tab → <strong>+ Capability</strong> → <strong>Associated Domains</strong>. Add exactly one entry:</p>
+<pre><code>applinks:esal.onrender.com</code></pre>
+<p>This requires a real provisioning profile tied to the <code>com.Raghad.eSal</code> bundle ID — the free/personal-team signing option does support Associated Domains, but you do need to build and run on a <strong>real device</strong>, not the Simulator, for the actual NFC tap to work (the Simulator has no NFC hardware at all).</p>
+</div>
+
+<h3>3.3 — What the backend already serves (or will serve) for this to work</h3>
+<p>The backend hosts a file at exactly this address, with no file extension:</p>
+<pre><code>https://esal.onrender.com/.well-known/apple-app-site-association</code></pre>
+<p>Its content, so you know what to expect if you ever fetch it yourself to debug:</p>
+<pre><code>{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "Z44K6B6BA2.com.Raghad.eSal",
+        "paths": ["/nfc*"]
+      }
+    ]
+  }
+}</code></pre>
+<p>You don't need to do anything with this file yourself — it's entirely a backend/Apple concern. It's listed here purely so you can sanity-check that the <code>appID</code> matches your project's Team ID + Bundle ID if something isn't matching.</p>
+
+<div class="warn">
+<strong>Caching gotcha you will very likely hit while testing:</strong> iOS fetches and caches this file once, at the point your app (with the Associated Domains entitlement) gets installed or re-installed on a device. If the backend team deploys this file <em>after</em> you've already installed a test build, your device won't know about it yet. <strong>Delete the app and reinstall it</strong> (or do a clean install from Xcode) any time the backend's AASA content changes, or any time Universal Links aren't matching for no obvious reason.
+</div>
+
+<h3>3.4 — Quick way to test Universal Link matching without an NFC tag at all</h3>
+<p>Open the <strong>Notes</strong> app on the test iPhone, type out <code>https://esal.onrender.com/nfc?pairingId=test&amp;mode=pair</code> as plain text, then <strong>long-press</strong> the link that Notes auto-detects. If Associated Domains is wired up correctly, you'll see <strong>"Open in eSal"</strong> in the preview. If you instead see a Safari preview, something in this section isn't matching yet — check the bundle ID, the entitlement, and whether you've reinstalled since the AASA file last changed.</p>
+
+<hr>
+
+<h2 id="receiving">4. Step 2 — Receiving and parsing the URL</h2>
+
+<p>Once Universal Links are matching, iOS launches (or resumes) your app and hands you the URL. In SwiftUI, the simplest way to receive it is <code>.onOpenURL</code> on your top-level view:</p>
+
+<pre><code>WindowGroup {
+    ContentView()
+        .onOpenURL { url in
+            handleIncomingTap(url)
+        }
+}</code></pre>
+
+<p>Parse the two values you need with <code>URLComponents</code> — do not try to parse the query string by hand:</p>
+
+<pre><code>func handleIncomingTap(_ url: URL) {
+    guard
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+        let queryItems = components.queryItems,
+        let pairingId = queryItems.first(where: { $0.name == "pairingId" })?.value,
+        let mode = queryItems.first(where: { $0.name == "mode" })?.value
+    else {
+        // Malformed link — see "Edge cases" section below
+        return
+    }
+
+    switch mode {
+    case "pair":
+        handlePairingTap(pairingId: pairingId)
+    case "claim":
+        handleClaimTap(pairingId: pairingId)
+    default:
+        // Unknown mode value — see "Edge cases" section below
+        break
+    }
+}</code></pre>
+
+<p>That's the entire parsing job — two string values off the query string, nothing else on the URL matters to you.</p>
+
+<hr>
+
+<h2 id="endpoints">5. Step 3 — The two backend calls, in full</h2>
+
+<p>Both endpoints require the current user to already be logged in — attach the app's normal JWT the exact same way you do for every other eSal API call (<code>Authorization: Bearer &lt;token&gt;</code>).</p>
+
+<h3>5.1 — <code>mode=pair</code> → shop owner is pairing a device</h3>
+<table>
+<tr><th>Method / Path</th><td><code>POST /devices/pair/nfc</code></td></tr>
+<tr><th>Auth required</th><td>Yes — logged-in <strong>shop owner</strong> account (<code>accountType: "SHOP"</code>) with a store already assigned</td></tr>
+<tr><th>Request body</th><td><pre><code>{ "pairingId": "&lt;the pairingId from the URL&gt;" }</code></pre></td></tr>
+<tr><th>Success response</th><td>The created device record, e.g.:
+<pre><code>{
+  "id": "clx...",
+  "pairingId": "689a92db-5bc5-4693-b4b6-dda4665398ce",
+  "storeId": "clx...",
+  "apiKey": "...",
+  "apiKeyRetrieved": false,
+  "createdAt": "2026-07-15T10:00:00.000Z"
+}</code></pre>
+Your app doesn't need to do anything with these fields beyond confirming the call succeeded — the <code>apiKey</code> here is for the Pi, not for your app.</td></tr>
+<tr><th>403 Forbidden</th><td>Logged-in user isn't a shop owner, or has no store yet. Message: <em>"Only shop accounts with a store can pair devices."</em> Show something like <strong>"This action is only available to store accounts."</strong></td></tr>
+<tr><th>409 Conflict</th><td>This exact <code>pairingId</code> has already been paired before (someone tapped the tag twice, or it's a stale/reused tag). Message: <em>"This device has already been paired."</em> Show <strong>"This device is already set up."</strong></td></tr>
+</table>
+
+<h3>5.2 — <code>mode=claim</code> → customer is claiming a receipt</h3>
+<table>
+<tr><th>Method / Path</th><td><code>POST /receipts/claim/nfc</code></td></tr>
+<tr><th>Auth required</th><td>Yes — logged-in <strong>customer</strong> account (<code>accountType: "CUSTOMER"</code>)</td></tr>
+<tr><th>Request body</th><td><pre><code>{ "pairingId": "&lt;the pairingId from the URL&gt;" }</code></pre></td></tr>
+<tr><th>Success response</th><td>The now-claimed receipt, e.g.:
+<pre><code>{
+  "id": "clx...",
+  "deviceId": "clx...",
+  "userId": "clx...",
+  "status": "ASSIGNED",
+  "total": "42.50",
+  "createdAt": "2026-07-15T10:05:00.000Z",
+  ...
+}</code></pre>
+Note <code>total</code> and other money fields are serialized as <strong>strings</strong>, not numbers — same as everywhere else in the API, convert with <code>Decimal</code>/<code>Double(...)</code> as you already do elsewhere. This is the receipt that should now show up in the customer's receipt list — good moment to refresh that screen or navigate straight to the receipt detail view.</td></tr>
+<tr><th>403 Forbidden</th><td>Logged-in user isn't a customer account. Message: <em>"Only Customer Accounts can claim receipts."</em> Show <strong>"This action is only available to customer accounts."</strong></td></tr>
+<tr><th>404 Not Found (device)</th><td>The <code>pairingId</code> doesn't match any known device at all. Message: <em>"Device Not Found."</em> Should be rare/only happen with a malformed or fake link.</td></tr>
+<tr><th>404 Not Found (no receipt)</th><td>The device exists, but has no receipt currently waiting to be claimed. Message: <em>"No Pending receipt found for this device."</em> This is the <strong>most common real-world case</strong> to design for — e.g. the customer tapped before the cashier finished ringing them up, or they tap again after already claiming. Show something friendly like <strong>"No new receipt to claim yet — ask the cashier to complete your purchase first."</strong></td></tr>
+</table>
+
+<hr>
+
+<h2 id="edgecases">6. Edge cases and UI states to handle</h2>
+
+<div class="step-box">
+<p><strong>User isn't logged in when the tap comes in.</strong> Both endpoints require a JWT — if there's no logged-in session, don't attempt the call at all. Recommended: store the incoming URL, route to your login screen, and re-run <code>handleIncomingTap</code> once login completes.</p>
+
+<p><strong>Wrong account type taps the wrong mode.</strong> A customer account tapping a <code>mode=pair</code> tag (device not yet paired), or a shop owner tapping a <code>mode=claim</code> tag, both come back as <strong>403</strong> from the backend — see the tables above for exact messages. Don't treat these as generic network errors; show the specific friendly message.</p>
+
+<p><strong>Malformed URL / missing query params.</strong> Should not normally happen from the real tag, but defend against it anyway — if <code>pairingId</code> or <code>mode</code> is missing, or <code>mode</code> is some unrecognized value, just no-op silently or show a generic "couldn't read that tag" message rather than crashing.</p>
+
+<p><strong>Tap arrives while the app is backgrounded vs. fully closed.</strong> Both cases route through the same <code>.onOpenURL</code>/scene-delegate mechanism once iOS finishes launching or resuming your app — no special-casing needed on your end.</p>
+</div>
+
+<hr>
+
+<h2 id="testing">7. Testing checklist</h2>
+
+<div class="ok">
+<ol>
+<li>Bundle ID in Xcode is exactly <code>com.Raghad.eSal</code>.</li>
+<li>Associated Domains capability added, with <code>applinks:esal.onrender.com</code>.</li>
+<li>Built and running on a <strong>real device</strong> (Simulator has no NFC reader).</li>
+<li>Notes-app long-press test (section 3.4) shows "Open in eSal", not a Safari preview.</li>
+<li>If it doesn't: reinstall the app fresh, then retry — this fixes the large majority of "Universal Links just aren't matching" cases during active development.</li>
+<li>Physically tap the real tag with the app installed and logged in as a shop owner → confirm pairing succeeds and the Pi's LED/terminal shows a successful pair.</li>
+<li>Have the Pi (or the backend team) trigger a pending receipt on that now-paired device, then tap again logged in as a customer → confirm the receipt appears claimed in the app.</li>
+</ol>
+</div>
+
+</body>
+</html>

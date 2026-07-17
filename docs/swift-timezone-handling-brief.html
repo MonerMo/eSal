@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>eSal - Timezone Handling for transactionDate / warrantyEndDate</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm; }
+  body {
+    font-family: -apple-system, Segoe UI, Arial, sans-serif;
+    color: #1a1a1a;
+    font-size: 10.5pt;
+    line-height: 1.5;
+  }
+  h1 { font-size: 16pt; margin-bottom: 2px; }
+  .subtitle { color: #555; font-size: 9.5pt; margin-bottom: 18px; }
+  h2 {
+    font-size: 12pt;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 4px;
+    margin-top: 24px;
+  }
+  code, pre {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 9pt;
+  }
+  pre {
+    background: #f5f5f2;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 8px 10px;
+    white-space: pre-wrap;
+    margin: 6px 0 12px 0;
+  }
+  .note {
+    background: #f5f5f2;
+    border-left: 3px solid #8a8a80;
+    padding: 6px 10px;
+    margin: 10px 0;
+    font-size: 9.5pt;
+  }
+  .warn {
+    background: #f7f0ec;
+    border-left: 3px solid #b06a3a;
+    padding: 6px 10px;
+    margin: 10px 0;
+    font-size: 9.5pt;
+  }
+  ul { margin-top: 4px; }
+  li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<h1>Timezone Handling: transactionDate &amp; warrantyEndDate</h1>
+<div class="subtitle">2026-07-17</div>
+
+<div class="note">
+Both fields are now genuinely correct UTC instants (same reliability as <code>createdAt</code>/<code>updatedAt</code>) -
+a backend bug that mislabeled Riyadh local time as UTC was just fixed. This page is only about how the iOS side
+should consume them correctly.
+</div>
+
+<h2>What to do</h2>
+<p>Parse both fields as standard ISO 8601 UTC and let Foundation render them in the device's own local timezone - no manual offset math needed on the Swift side, regardless of what timezone the device is in.</p>
+<pre>let formatter = ISO8601DateFormatter()
+formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+let date = formatter.date(from: transactionDateString)</pre>
+
+<div class="warn">
+<strong>Concrete gotcha:</strong> these timestamps include milliseconds, e.g. <code>"2026-07-12T08:15:00.000Z"</code>.
+Foundation's default <code>ISO8601DateFormatter()</code> (with no options set) does <strong>not</strong> parse the
+<code>.000</code> fractional-seconds part and will silently return <code>nil</code>. Make sure
+<code>.withFractionalSeconds</code> is included in <code>formatOptions</code>, as shown above. If decoding through
+<code>Codable</code> instead, use <code>JSONDecoder.DateDecodingStrategy.iso8601</code> (Swift 5.9+ handles
+fractional seconds there by default) rather than rolling a custom formatter per model.
+</div>
+
+<h2>What not to do</h2>
+<ul>
+  <li>Don't strip or ignore the trailing <code>Z</code> and treat the string as if it were already local time.</li>
+  <li>Don't hardcode a Riyadh (+03:00) offset on the client - the value is true UTC now, so correctly parsing it
+      renders the right local time automatically, on any device, in any timezone.</li>
+  <li>Both fields are optional - model them as <code>Date?</code>, they'll be <code>null</code> whenever the
+      receipt didn't clearly print that information.</li>
+</ul>
+
+<h2>One thing to expect, not a new bug</h2>
+<p>Only receipts parsed <em>after</em> this fix shipped carry correct values. Anything parsed before that -
+including older test receipts - still carries the old, incorrect value (off by exactly 3 hours). If you spot a
+receipt whose displayed time looks exactly 3 hours off from when you'd expect, that's old data, not a client-side
+parsing mistake.</p>
+
+</body>
+</html>

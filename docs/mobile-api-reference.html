@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Smart Receipt (eSal) — Mobile API Reference</title>
+<style>
+  @page { size: A4; margin: 20mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1a1a1a;
+    font-size: 10.5pt;
+    line-height: 1.5;
+  }
+  h1 {
+    font-size: 20pt;
+    margin-bottom: 2px;
+    color: #0f172a;
+  }
+  .subtitle {
+    color: #64748b;
+    font-size: 10pt;
+    margin-top: 0;
+    margin-bottom: 18px;
+  }
+  h2 {
+    font-size: 14pt;
+    margin-top: 26px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #0f172a;
+    color: #0f172a;
+  }
+  h3.endpoint {
+    font-size: 12.5pt;
+    margin-top: 22px;
+    margin-bottom: 4px;
+    page-break-after: avoid;
+  }
+  .method-get { color: #0369a1; }
+  .method-post { color: #15803d; }
+  code, .mono {
+    font-family: "SF Mono", Consolas, Menlo, monospace;
+    font-size: 9.3pt;
+  }
+  code {
+    background: #f1f5f9;
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 10px 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 8.8pt;
+    line-height: 1.45;
+    page-break-inside: avoid;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0 14px 0;
+    font-size: 9.3pt;
+  }
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 5px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #f1f5f9; }
+  .badge {
+    display: inline-block;
+    font-size: 8.3pt;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-right: 6px;
+  }
+  .badge-auth { background: #fef3c7; color: #92400e; }
+  .badge-noauth { background: #e2e8f0; color: #334155; }
+  .section-label {
+    font-weight: 600;
+    font-size: 9.8pt;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    color: #334155;
+  }
+  .note {
+    background: #eff6ff;
+    border-left: 4px solid #3b82f6;
+    padding: 8px 12px;
+    margin: 10px 0;
+    font-size: 9.5pt;
+  }
+  .warn {
+    background: #fef2f2;
+    border-left: 4px solid #ef4444;
+    padding: 8px 12px;
+    margin: 10px 0;
+    font-size: 9.5pt;
+  }
+  .toc { font-size: 9.8pt; }
+  .toc a { color: #0f172a; text-decoration: none; }
+  hr { border: none; border-top: 1px solid #e2e8f0; margin: 20px 0; }
+  .endpoint-block { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<h1>Smart Receipt (eSal) — Mobile API Reference</h1>
+<p class="subtitle">AMAD Hackathon · Backend for the Swift mobile app · Prepared 2026-07-12</p>
+
+<div class="note">
+<strong>Base URL:</strong> <code>https://&lt;your-render-app&gt;.onrender.com</code> — replace with the actual Render deployment URL you've been testing against in Postman. All paths below are relative to this base URL.
+</div>
+
+<h2>General Conventions</h2>
+
+<div class="section-label">Authentication</div>
+<p>Every endpoint marked <span class="badge badge-auth">JWT REQUIRED</span> needs this header on the request:</p>
+<pre><code>Authorization: Bearer &lt;accessToken&gt;</code></pre>
+<p>The <code>accessToken</code> comes from <code>POST /auth/login</code>. There is no separate "get current user id" call needed — the token is self-contained; the backend extracts the user's identity from it. The app never sends a user id anywhere itself.</p>
+
+<div class="section-label">Error response shape</div>
+<p>All errors (validation, auth, not found, etc.) come back as JSON in Nest's standard shape:</p>
+<pre><code>{
+  "statusCode": 404,
+  "message": "Receipt not found",
+  "error": "Not Found"
+}</code></pre>
+<p><code>message</code> can also be an <strong>array of strings</strong> specifically for request-validation failures (missing/invalid fields), e.g. <code>["email must be an email", "password must be longer than or equal to 8 characters"]</code>.</p>
+
+<div class="warn">
+<strong>Important — Decimal fields serialize as JSON strings, not numbers.</strong><br>
+Every money/quantity field (<code>subtotal</code>, <code>tax</code>, <code>serviceCharge</code>, <code>discount</code>, <code>total</code>, <code>quantity</code>, <code>unitPrice</code>, <code>totalPrice</code>, <code>totalSpendingThisMonth</code>, <code>totalSpending</code>, category <code>total</code>) is a Prisma <code>Decimal</code> under the hood. Decimals serialize to JSON as <strong>quoted strings</strong> (e.g. <code>"total": "49.90"</code>), not bare numbers — this is deliberate on Prisma's part, to avoid floating-point precision loss on money values. Swift's default <code>JSONDecoder</code> will <strong>fail</strong> to decode a quoted string directly into a <code>Double</code>/<code>Decimal</code> property — you'll need to either decode these fields as <code>String</code> and convert, or use a custom decoding strategy. The one exception: when a sum has <em>no data to sum</em> (e.g. no spending this month yet), the backend currently returns the plain number <code>0</code> instead of a Decimal string — so these specific fields can arrive as <em>either</em> a string or a number. Decode defensively.
+</div>
+
+<div class="note">
+<strong>Dates</strong> (<code>createdAt</code>, <code>updatedAt</code>, <code>warrantyEndDate</code>) are standard ISO-8601 UTC strings, e.g. <code>"2026-07-11T18:21:29.123Z"</code>.
+</div>
+
+<div class="note">
+<strong>HTTP status codes on <code>POST /auth/signup</code> and <code>POST /auth/login</code>:</strong> both currently return <strong>201</strong> on success (NestJS's default for <code>@Post()</code> routes when no status override is set), not 200. Check for the 2xx range rather than hardcoding 200 for these two.
+</div>
+
+<hr>
+
+<h2>Table of Contents</h2>
+<div class="toc">
+<ol>
+<li><a href="#signup">POST /auth/signup</a></li>
+<li><a href="#login">POST /auth/login</a></li>
+<li><a href="#me">GET /users/me</a></li>
+<li><a href="#receipts">GET /receipts</a></li>
+<li><a href="#receipt-detail">GET /receipts/:id</a></li>
+<li><a href="#dashboard">GET /dashboard</a></li>
+<li><a href="#insights">GET /insights</a></li>
+<li><a href="#passes">GET /passes/wallet</a></li>
+<li><a href="#shop">Shop Owner Endpoints</a></li>
+<li><a href="#scope">Not Included In This Doc</a></li>
+<li><a href="#gaps">Known Gaps / Open Items</a></li>
+</ol>
+</div>
+
+<hr>
+
+<h2 id="signup">1. Create Account</h2>
+<div class="endpoint-block">
+<h3 class="endpoint"><span class="method-post">POST</span> /auth/signup</h3>
+<span class="badge badge-noauth">NO AUTH</span>
+
+<div class="section-label">Request body</div>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>email</code></td><td>string</td><td>yes</td><td>Must be a valid email; must be unique account-wide</td></tr>
+<tr><td><code>password</code></td><td>string</td><td>yes</td><td>Minimum 8 characters</td></tr>
+<tr><td><code>name</code></td><td>string</td><td>yes</td><td>Full name</td></tr>
+<tr><td><code>phone</code></td><td>string</td><td>yes</td><td></td></tr>
+<tr><td><code>accountType</code></td><td>"CUSTOMER" | "SHOP"</td><td>yes</td><td>Mobile app will always send <code>"CUSTOMER"</code></td></tr>
+<tr><td><code>storeName</code></td><td>string</td><td>only if <code>accountType</code> is <code>"SHOP"</code></td><td>Not applicable to the customer app</td></tr>
+</table>
+
+<pre><code>{
+  "email": "sara@example.com",
+  "password": "hunter22",
+  "name": "Sara Al-Otaibi",
+  "phone": "+966500000000",
+  "accountType": "CUSTOMER"
+}</code></pre>
+
+<div class="section-label">Success response — 201</div>
+<p>Returns the full created user record (password always excluded):</p>
+<pre><code>{
+  "id": "b2b6b7b0-....",
+  "name": "Sara Al-Otaibi",
+  "email": "sara@example.com",
+  "phone": "+966500000000",
+  "role": "USER",
+  "accountType": "CUSTOMER",
+  "walletToken": "6f0a1e2c-....",
+  "createdAt": "2026-07-12T09:00:00.000Z",
+  "updatedAt": "2026-07-12T09:00:00.000Z",
+  "storeId": null
+}</code></pre>
+<p><strong>Note:</strong> this is currently the <em>only</em> response in the whole API that returns <code>walletToken</code> — see <a href="#gaps">Known Gaps</a> below.</p>
+
+<div class="section-label">Error responses</div>
+<table>
+<tr><th>Status</th><th>Message</th><th>When</th></tr>
+<tr><td>409</td><td><code>"An Account with this email already exits."</code> <em>(typo is in the real API response — match on status code, not string)</em></td><td>Email already registered</td></tr>
+<tr><td>400</td><td>Array of validation messages</td><td>Missing/invalid fields, password &lt; 8 chars, invalid <code>accountType</code>, extra unrecognized fields in the body</td></tr>
+<tr><td>500</td><td>Generic error</td><td>Unexpected DB failure other than the unique-email conflict</td></tr>
+</table>
+</div>
+
+<hr>
+
+<h2 id="login">2. Login</h2>
+<div class="endpoint-block">
+<h3 class="endpoint"><span class="method-post">POST</span> /auth/login</h3>
+<span class="badge badge-noauth">NO AUTH</span>
+
+<div class="section-label">Request body</div>
+<pre><code>{
+  "email": "sara@example.com",
+  "password": "hunter22"
+}</code></pre>
+
+<div class="section-label">Success response — 201</div>
+<pre><code>{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}</code></pre>
+<p>Store this token and attach it as <code>Authorization: Bearer &lt;accessToken&gt;</code> on every subsequent authenticated request.</p>
+
+<div class="section-label">Error responses</div>
+<table>
+<tr><th>Status</th><th>Message</th><th>When</th></tr>
+<tr><td>401</td><td><code>"Invalid Credentials"</code></td><td>Email not found <em>or</em> wrong password — same message for both, deliberately, so the client can't probe which emails are registered</td></tr>
+<tr><td>400</td><td>Array of validation messages</td><td>Missing/malformed email or password</td></tr>
+</table>
+</div>
+
+<hr>
+
+<h2 id="me">3. Current User Profile</h2>
+<div class="endpoint-block">
+<h3 class="endpoint"><span class="method-get">GET</span> /users/me</h3>
+<span class="badge badge-auth">JWT REQUIRED</span>
+
+<p>No path or query parameters. Used for the Profile screen.</p>
+
+<div class="section-label">Success response — 200</div>
+<pre><code>{
+  "id": "b2b6b7b0-....",
+  "name": "Sara Al-Otaibi",
+  "email": "sara@example.com",
+  "phone": "+966500000000",
+  "accountType": "CUSTOMER",
+  "createdAt": "2026-07-12T09:00:00.000Z"
+}</code></pre>
+<p>Deliberately does <strong>not</strong> include <code>role</code>, <code>walletToken</code>, <code>updatedAt</code>, or <code>storeId</code>.</p>
+
+<div class="section-label">Error responses</div>
+<table>
+<tr><th>Status</th><th>Message</th><th>When</th></tr>
+<tr><td>401</td><td><code>"Unauthorized"</code></td><td>Missing, malformed, or expired JWT</td></tr>
+<tr><td>404</td><td><code>"User not found"</code></td><td>Token is valid but the user no longer exists (shouldn't normally happen)</td></tr>
+</table>
+</div>
+
+<hr>
+
+<h2 id="receipts">4. Receipts List</h2>
+<div class="endpoint-block">
+<h3 class="endpoint"><span class="method-get">GET</span> /receipts</h3>
+<span class="badge badge-auth">JWT REQUIRED</span>
+
+<p>Powers the Receipts screen (list + filters + search). Only ever returns receipts claimed by the logged-in customer.</p>
+
+<div class="section-label">Query parameters (all optional)</div>
+<table>
+<tr><th>Param</th><th>Type</th><th>Values</th><th>Effect</th></tr>
+<tr><td><code>category</code></td><td>string</td><td>One of the 10 fixed category names, or <code>"All"</code></td><td>Only receipts containing at least one line item in that category</td></tr>
+<tr><td><code>range</code></td><td>string</td><td><code>"thisWeek"</code> | <code>"lastMonth"</code></td><td>Filters by <code>createdAt</code></td></tr>
+<tr><td><code>search</code></td><td>string</td><td>free text</td><td>Case-insensitive substring match against store name OR any line item name</td></tr>
+<tr><td><code>page</code></td><td>integer</td><td>&ge; 1, default 1</td><td>Pagination</td></tr>
+<tr><td><code>pageSize</code></td><td>integer</td><td>&ge; 1, default 20</td><td>Pagination</td></tr>
+</table>
+<p>The 10 fixed category names: <code>Food &amp; Dining</code>, <code>Coffee &amp; Beverages</code>, <code>Groceries</code>, <code>Fashion &amp; Apparel</code>, <code>Electronics</code>, <code>Books &amp; Stationery</code>, <code>Transport</code>, <code>Health &amp; Beauty</code>, <code>Entertainment</code>, <code>Other</code>.</p>
+<p><strong>Any query param not listed above will cause a 400</strong> — the backend rejects unrecognized params rather than silently ignoring them.</p>
+
+<div class="section-label">Example requests</div>
+<pre><code>GET /receipts
+GET /receipts?category=Electronics
+GET /receipts?range=thisWeek
+GET /receipts?search=monir
+GET /receipts?category=Groceries&range=lastMonth&page=2&pageSize=10</code></pre>
+
+<div class="section-label">Success response — 200</div>
+<pre><code>{
+  "data": [
+    {
+      "id": "c8f2....",
+      "subtotal": "199.00",
+      "tax": "29.85",
+      "serviceCharge": null,
+      "discount": null,
+      "total": "228.85",
+      "paymentMethod": "CARD",
+      "invoiceNo": "INV-10234",
+      "status": "ASSIGNED",
+      "createdAt": "2026-07-10T14:22:00.000Z",
+      "device": {
+        "store": {
+          "name": "Monir Electronics",
+          "logoUrl": null,
+          "taxId": null
+        }
+      },
+      "lineItems": [
+        {
+          "id": "9a1c....",
+          "name": "USB-C Cable 2m",
+          "quantity": "1",
+          "unitPrice": "199.00",
+          "totalPrice": "199.00",
+          "warrantyEndDate": null,
+          "category": { "name": "Electronics" }
+        }
+      ]
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 3,
+    "totalPages": 1
+  }
+}</code></pre>
+<p>An empty result set is valid, not an error: <code>"data": []</code>, <code>"pagination": { "total": 0, ... }</code>.</p>
+
+<div class="section-label">Error responses</div>
+<table>
+<tr><th>Status</th><th>When</th></tr>
+<tr><td>401</td><td>Missing/invalid JWT</td></tr>
+<tr><td>400</td><td>Invalid <code>range</code> value, non-integer/&lt;1 <code>page</code>/<code>pageSize</code>, or an unrecognized query param</td></tr>
+</table>
+</div>
+
+<hr>
+
+<h2 id="receipt-detail">5. Receipt Detail</h2>
+<div class="endpoint-block">
+<h3 class="endpoint"><span class="method-get">GET</span> /receipts/:id</h3>
+<span class="badge badge-auth">JWT REQUIRED</span>
+
+<p>Powers the Receipt Details screen. <code>:id</code> is the receipt's UUID (from a list item's <code>id</code>).</p>
+
+<div class="section-label">Success response — 200</div>
+<pre><code>{
+  "id": "c8f2....",
+  "subtotal": "199.00",
+  "tax": "29.85",
+  "serviceCharge": null,
+  "discount": null,
+  "total": "228.85",
+  "paymentMethod": "CARD",
+  "invoiceNo": "INV-10234",
+  "status": "ASSIGNED",
+  "createdAt": "2026-07-10T14:22:00.000Z",
+  "device": {
+    "store": { "name": "Monir Electronics", "logoUrl": null, "taxId": null }
+  },
+  "lineItems": [
+    {
+      "id": "9a1c....",
+      "name": "USB-C Cable 2m",
+      "quantity": "1",
+      "unitPrice": "199.00",
+      "totalPrice": "199.00",
+      "warrantyEndDate": null,
+      "category": { "name": "Electronics" }
+    }
+  ]
+}</code></pre>
+<p>The barcode shown on this screen for the cashier is generated client-side from <code>invoiceNo</code> — the backend does not generate any barcode image.</p>
+
+<div class="section-label">Error responses</div>
+<table>
+<tr><th>Status</th><th>Message</th><th>When</th></tr>
+<tr><td>404</td><td><code>"Receipt not found"</code></td><td><code>:id</code> doesn't exist at all</td></tr>
+<tr><td>403</td><td><code>"This receipt does not belong to you"</code></td><td>Receipt exists but is unclaimed or claimed by a different customer</td></tr>
+<tr><td>401</td><td><code>"Unauthorized"</code></td><td>Missing/invalid JWT</td></tr>
+</table>
+</div>
+
+<hr>
+
+<h2 id="dashboard">6. Dashboard</h2>
+<div class="endpoint-block">
+<h3 class="endpoint"><span class="method-get">GET</span> /dashboard</h3>
+<span class="badge badge-auth">JWT REQUIRED</span>
+
+<p>Single bundled call for the Dashboard home screen — first name, this-month spending, nearest warranty deadline, the 3 most recent receipts, and the offers card.</p>
+
+<div class="section-label">Success response — 200</div>
+<pre><code>{
+  "firstName": "Sara",
+  "totalSpendingThisMonth": "228.85",
+  "nearestWarranty": {
+    "lineItemId": "9a1c....",
+    "itemName": "USB-C Cable 2m",
+    "warrantyEndDate": "2027-07-10T00:00:00.000Z",
+    "receiptId": "c8f2....",
+    "storeName": "Monir Electronics",
+    "storeLogoUrl": null
+  },
+  "recentReceipts": [
+    { "...same shape as a /receipts list item...": true }
+  ],
+  "smartOffers": [
+    {
+      "title": "Extended Warranty Available",
+      "description": "Protect your recent electronics purchase with an extended warranty plan.",
+      "imageUrl": null
+    },
+    {
+      "title": "10% Cashback at Partner Stores",
+      "description": "Earn cashback when you shop at participating Smart Receipt partner stores.",
+      "imageUrl": null
+    }
+  ]
+}</code></pre>
+
+<table>
+<tr><th>Field</th><th>Notes</th></tr>
+<tr><td><code>firstName</code></td><td>First whitespace-separated token of the user's <code>name</code> field</td></tr>
+<tr><td><code>totalSpendingThisMonth</code></td><td>Sum of <code>total</code> across all receipts claimed this calendar month. Plain <code>0</code> (number) if no receipts yet this month</td></tr>
+<tr><td><code>nearestWarranty</code></td><td><strong><code>null</code></strong> if the user has no line item with a future <code>warrantyEndDate</code> — this is a normal, expected state, not an error</td></tr>
+<tr><td><code>recentReceipts</code></td><td>Up to 3, newest first — same object shape as the <code>/receipts</code> list</td></tr>
+<tr><td><code>smartOffers</code></td><td><strong>Fully hardcoded placeholder content</strong> — see <a href="#gaps">Known Gaps</a></td></tr>
+</table>
+
+<div class="section-label">Error responses</div>
+<table>
+<tr><th>Status</th><th>Message</th><th>When</th></tr>
+<tr><td>401</td><td><code>"Unauthorized"</code></td><td>Missing/invalid JWT</td></tr>
+<tr><td>404</td><td><code>"User not found"</code></td><td>Token valid but user no longer exists</td></tr>
+</table>
+</div>
+
+<hr>
+
+<h2 id="insights">7. Insights</h2>
+<div class="endpoint-block">
+<h3 class="endpoint"><span class="method-get">GET</span> /insights</h3>
+<span class="badge badge-auth">JWT REQUIRED</span>
+
+<p>Powers the Insights screen — total spend plus a per-category breakdown for a selectable time range.</p>
+
+<div class="section-label">Query parameters</div>
+<table>
+<tr><th>Param</th><th>Values</th><th>Default</th></tr>
+<tr><td><code>range</code></td><td><code>"thisMonth"</code> | <code>"lastMonth"</code> | <code>"3months"</code></td><td><code>"thisMonth"</code> if omitted</td></tr>
+</table>
+<div class="warn">
+Note the different vocabulary from the Receipts screen: Insights uses <code>thisMonth</code>/<code>lastMonth</code>/<code>3months</code>, while Receipts uses <code>thisWeek</code>/<code>lastMonth</code>. Don't reuse one range enum for both screens in the app.
+</div>
+
+<div class="section-label">Example requests</div>
+<pre><code>GET /insights
+GET /insights?range=lastMonth
+GET /insights?range=3months</code></pre>
+
+<div class="section-label">Success response — 200</div>
+<pre><code>{
+  "range": "thisMonth",
+  "totalSpending": "560.40",
+  "categories": [
+    { "category": "Electronics", "total": "228.85" },
+    { "category": "Groceries", "total": "331.55" }
+  ]
+}</code></pre>
+<p><code>categories</code> is sorted by <code>total</code> descending. A category with no spending in range is simply absent from the array (not returned as zero). If a line item somehow has no assigned category, it's grouped under <code>"Uncategorized"</code>. Empty range → <code>"totalSpending": 0</code>, <code>"categories": []</code>.</p>
+
+<div class="section-label">Error responses</div>
+<table>
+<tr><th>Status</th><th>When</th></tr>
+<tr><td>401</td><td>Missing/invalid JWT</td></tr>
+<tr><td>400</td><td><code>range</code> is present but not one of the 3 allowed values</td></tr>
+</table>
+</div>
+
+<hr>
+
+<h2 id="passes">8. Apple Wallet Pass</h2>
+<div class="endpoint-block">
+<h3 class="endpoint"><span class="method-get">GET</span> /passes/wallet</h3>
+<span class="badge badge-auth">JWT REQUIRED</span>
+
+<p>Returns a signed <code>.pkpass</code> file for the logged-in user — this is the customer's membership card / wallet-token carrier, and is <strong>how the app hands the customer's claim QR code to Apple Wallet</strong>. The raw <code>walletToken</code> value never needs to be exposed to the app as JSON anywhere; it's baked directly into the pass's barcode by the backend.</p>
+
+<div class="section-label">Response — 200</div>
+<table>
+<tr><th>Header</th><th>Value</th></tr>
+<tr><td><code>Content-Type</code></td><td><code>application/vnd.apple.pkpass</code></td></tr>
+<tr><td><code>Content-Disposition</code></td><td><code>attachment; filename="esal.pkpass"</code></td></tr>
+</table>
+<p>Body is the raw binary <code>.pkpass</code> file (a signed zip archive). On iOS, fetch it as <code>Data</code>, then:</p>
+<pre><code>let pass = try PKPass(data: passData)
+let vc = PKAddPassesViewController(pass: pass)
+present(vc, animated: true)</code></pre>
+<p>The pass contains a <code>PKBarcodeFormatQR</code> barcode encoding the user's <code>walletToken</code>, their name, "Member Since" date, and account type. This is what the customer shows at checkout for the store's Raspberry Pi (GM65 scanner) to read and claim the receipt against their account.</p>
+
+<div class="section-label">Error responses</div>
+<table>
+<tr><th>Status</th><th>Message</th><th>When</th></tr>
+<tr><td>401</td><td><code>"Unauthorized"</code></td><td>Missing/invalid JWT</td></tr>
+<tr><td>404</td><td><code>"User Doesn't Have Wallet Token"</code></td><td>User's <code>walletToken</code> is null (shouldn't normally happen — it's set automatically at account creation)</td></tr>
+<tr><td>409</td><td><code>"Shop Owner Not Linked To A Store"</code></td><td>Only relevant for <code>SHOP</code>-type accounts, not the customer app's flow</td></tr>
+</table>
+</div>
+
+<hr>
+
+<h2 id="shop">Shop Owner Endpoints</h2>
+
+<div class="warn">
+<strong>Requires a fresh login.</strong> These 4 endpoints rely on <code>accountType</code> and <code>storeId</code> now being embedded in the JWT at login time. Any <code>accessToken</code> obtained <em>before</em> this change was deployed will not carry those claims and will be rejected with 403 by every endpoint below — call <code>POST /auth/login</code> again to get a token that works with them. This does not affect any of the customer endpoints above, which never read those claims.
+</div>
+
+<p>All 4 endpoints below share the same guard stack: <span class="badge badge-auth">JWT REQUIRED</span> <strong>and</strong> the account must be <code>accountType: "SHOP"</code>. A <code>CUSTOMER</code> token calling any of these gets a 403, not empty data.</p>
+
+<table>
+<tr><th>Status</th><th>Message</th><th>When (applies to all 4 endpoints below)</th></tr>
+<tr><td>401</td><td><code>"Unauthorized"</code></td><td>Missing/invalid JWT</td></tr>
+<tr><td>403</td><td><code>"This endpoint is only available to shop accounts"</code></td><td>Token belongs to a <code>CUSTOMER</code> account</td></tr>
+<tr><td>403</td><td><code>"Shop account is not linked to a store"</code></td><td>Defensive case — shouldn't happen in practice, since a store is created atomically at signup for <code>SHOP</code> accounts</td></tr>
+</table>
+
+<div class="note">
+<strong>Privacy by design:</strong> none of these endpoints ever return the identity (name/email/phone) of the customer who claimed a receipt — only the receipt's <code>status</code> (<code>"PENDING"</code> = unclaimed, <code>"ASSIGNED"</code> = claimed by some customer). This was a deliberate choice, not an oversight.
+</div>
+
+<h3 class="endpoint"><span class="method-get">GET</span> /shop/receipts</h3>
+<div class="section-label">Query parameters (all optional)</div>
+<table>
+<tr><th>Param</th><th>Type</th><th>Values</th><th>Effect</th></tr>
+<tr><td><code>invoiceNo</code></td><td>string</td><td>free text</td><td>Case-insensitive partial match — the primary way a shop owner looks up a specific transaction</td></tr>
+<tr><td><code>category</code></td><td>string</td><td>one of the 10 fixed category names, or <code>"All"</code></td><td>Only receipts containing at least one line item in that category</td></tr>
+<tr><td><code>range</code></td><td>string</td><td><code>"thisWeek"</code> | <code>"lastMonth"</code></td><td>Filters by <code>createdAt</code></td></tr>
+<tr><td><code>page</code> / <code>pageSize</code></td><td>integer</td><td>&ge; 1</td><td>Pagination, same defaults as the customer list (1 / 20)</td></tr>
+</table>
+
+<div class="section-label">Success response — 200</div>
+<pre><code>{
+  "data": [
+    {
+      "id": "c8f2....",
+      "subtotal": "323.50",
+      "tax": "46.50",
+      "serviceCharge": "10.00",
+      "discount": "-23.50",
+      "total": "356.50",
+      "paymentMethod": "CASH",
+      "invoiceNo": "INV-99871",
+      "status": "PENDING",
+      "createdAt": "2026-07-12T11:15:00.000Z",
+      "device": { "name": "Register 1" },
+      "lineItems": [
+        {
+          "id": "9a1c....",
+          "name": "Wireless Mouse",
+          "quantity": "1",
+          "unitPrice": "75.00",
+          "totalPrice": "75.00",
+          "warrantyEndDate": "2027-07-12T00:00:00.000Z",
+          "category": { "name": "Electronics" }
+        }
+      ]
+    }
+  ],
+  "pagination": { "page": 1, "pageSize": 20, "total": 1, "totalPages": 1 }
+}</code></pre>
+<p>Note what's different from the customer <code>/receipts</code> shape: no <code>device.store</code> block (the shop owner already knows it's their own store) — instead <code>device.name</code>, so a multi-register store can tell which till a sale came from.</p>
+
+<hr style="margin:14px 0;">
+
+<h3 class="endpoint"><span class="method-get">GET</span> /shop/receipts/:id</h3>
+<p>Same object shape as a <code>/shop/receipts</code> list item. <code>:id</code> is the receipt's UUID.</p>
+<table>
+<tr><th>Status</th><th>Message</th><th>When</th></tr>
+<tr><td>404</td><td><code>"Receipt not found"</code></td><td><code>:id</code> doesn't exist</td></tr>
+<tr><td>403</td><td><code>"This receipt does not belong to your store"</code></td><td>Receipt exists but was generated by a different store's device</td></tr>
+</table>
+
+<hr style="margin:14px 0;">
+
+<h3 class="endpoint"><span class="method-get">GET</span> /shop/dashboard</h3>
+<div class="section-label">Success response — 200</div>
+<pre><code>{
+  "storeName": "Monir Electronics",
+  "totalRevenueThisMonth": "356.50",
+  "receiptCountThisMonth": 1,
+  "recentReceipts": [
+    { "...same shape as a /shop/receipts list item...": true }
+  ]
+}</code></pre>
+<p><code>totalRevenueThisMonth</code> is the plain number <code>0</code> (not a Decimal string) if the store has no receipts yet this month — same quirk noted in General Conventions above.</p>
+
+<hr style="margin:14px 0;">
+
+<h3 class="endpoint"><span class="method-get">GET</span> /shop/insights</h3>
+<div class="section-label">Query parameters</div>
+<table>
+<tr><th>Param</th><th>Values</th><th>Default</th></tr>
+<tr><td><code>range</code></td><td><code>"thisMonth"</code> | <code>"lastMonth"</code> | <code>"3months"</code></td><td><code>"thisMonth"</code> if omitted</td></tr>
+</table>
+<div class="section-label">Success response — 200</div>
+<pre><code>{
+  "range": "thisMonth",
+  "totalRevenue": "356.50",
+  "categories": [
+    { "category": "Electronics", "total": "75.00" },
+    { "category": "Groceries", "total": "90.00" }
+  ]
+}</code></pre>
+<p>Same shape and sorting as the customer <code>/insights</code>, scoped to the store's total sales instead of one customer's spending.</p>
+
+<hr>
+
+<h2 id="scope">Not Included In This Doc</h2>
+<div class="note">
+The backend also has a <code>/devices</code> module (<code>POST /devices/pair/qr</code>, <code>POST /devices/pair/nfc</code>, <code>GET /devices/pair/status</code>) and two receipt endpoints (<code>POST /receipts</code>, <code>POST /receipts/:id/claim/qr</code>). These are deliberately <strong>excluded</strong> from this document because the customer mobile app never calls them:
+<ul>
+<li><code>POST /receipts</code> and <code>POST /receipts/:id/claim/qr</code> are called by the Raspberry Pi itself, authenticated with a per-device API key (<code>x-api-key</code> header), not a customer JWT.</li>
+<li>The <code>/devices/pair/*</code> endpoints are the one-time flow a shop owner uses to link a new Pi to their store — separate from viewing receipts/dashboard/insights, which <em>is</em> now documented above. No device-pairing screens have been shared yet, so that part stays excluded for now.</li>
+</ul>
+</div>
+
+<div class="warn">
+<strong>Security note (not blocking, but worth knowing):</strong> <code>GET /devices/pair/status</code> currently has <strong>no authentication guard at all</strong> — anyone who knows (or guesses) a device's <code>pairingId</code> can call it and receive that device's <code>apiKey</code> in plain JSON. This is the same class of issue as the earlier <code>device.apiKey</code> leak that was fixed on <code>/receipts</code>, just in a different endpoint. It's not part of today's build, flagging it here so it doesn't get forgotten.
+</div>
+
+<hr>
+
+<h2 id="gaps">Known Gaps / Open Items</h2>
+
+<div class="note">
+<strong>1. Store branding fields are currently empty.</strong> <code>taxId</code> and <code>logoUrl</code> are <code>null</code> on the test store used for development. Set them in Prisma Studio before a demo that shows store branding on the Receipts/Details screens.
+</div>
+
+<div class="note">
+<strong>2. Smart Offers are mocked.</strong> The <code>smartOffers</code> array on <code>/dashboard</code> is hardcoded placeholder content — there is no real recommendation logic behind it.
+</div>
+
+<div class="note">
+<strong>3. Language and notification toggles are client-side only.</strong> Confirmed — no backend persistence, no endpoint to call for these Profile screen settings.
+</div>
+
+</body>
+</html>

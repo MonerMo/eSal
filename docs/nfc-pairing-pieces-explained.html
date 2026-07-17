@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>eSal — NFC Pairing: The Two Pieces, Explained</title>
+<style>
+  @page { size: A4; margin: 22mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1a1a1a;
+    font-size: 12.5pt;
+    line-height: 1.65;
+  }
+  h1 {
+    font-size: 22pt;
+    margin-bottom: 4px;
+    color: #0f172a;
+  }
+  .subtitle {
+    color: #64748b;
+    font-size: 11pt;
+    margin-top: 0;
+    margin-bottom: 22px;
+  }
+  h2 {
+    font-size: 16pt;
+    margin-top: 32px;
+    padding-bottom: 6px;
+    border-bottom: 3px solid #0f172a;
+    color: #0f172a;
+  }
+  h3 {
+    font-size: 13.5pt;
+    margin-top: 22px;
+    color: #1e293b;
+  }
+  p { margin: 10px 0; }
+  code, .mono {
+    font-family: "SF Mono", Consolas, Menlo, monospace;
+    font-size: 10.8pt;
+  }
+  code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 14px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 10pt;
+    line-height: 1.55;
+    page-break-inside: avoid;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .step-box {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-left: 5px solid #0f172a;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 16px 0;
+  }
+  .note {
+    background: #eff6ff;
+    border-left: 4px solid #3b82f6;
+    padding: 12px 16px;
+    margin: 14px 0;
+    font-size: 11.5pt;
+    border-radius: 4px;
+  }
+  .warn {
+    background: #fef2f2;
+    border-left: 4px solid #ef4444;
+    padding: 12px 16px;
+    margin: 14px 0;
+    font-size: 11.5pt;
+    border-radius: 4px;
+  }
+  .piece-badge {
+    display: inline-block;
+    background: #0f172a;
+    color: #fff;
+    font-weight: 700;
+    font-size: 11pt;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0;
+    font-size: 11pt;
+  }
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 7px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #f1f5f9; }
+  .toc { font-size: 11.5pt; }
+  .toc a { color: #0f172a; text-decoration: none; }
+  hr { border: none; border-top: 1px solid #e2e8f0; margin: 26px 0; }
+  .callout-num {
+    display: inline-block;
+    background: #0f172a;
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 20px;
+    font-size: 10pt;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+</style>
+</head>
+<body>
+
+<h1>eSal — NFC Pairing: The Two Pieces, Explained</h1>
+<p class="subtitle">A plain-language walkthrough of the tag-writing script and the pairing-wait poller, and why they're two separate things.</p>
+
+<div class="note">
+<strong>The one idea to hold onto through all of this:</strong> these two pieces of code run at <strong>completely different times</strong>, for different reasons. Piece 1 runs <strong>once, ever</strong>, by hand, when you're setting up a device. Piece 2 runs <strong>every time the Pi boots</strong>, waiting for something to happen. Keeping that distinction in your head makes everything else in this document make sense.
+</div>
+
+<h2>Table of Contents</h2>
+<div class="toc">
+<ol>
+<li><a href="#bigpicture">The big picture — why two pieces at all</a></li>
+<li><a href="#piece1">Piece 1 — the tag-writing script (runs once)</a></li>
+<li><a href="#piece2">Piece 2 — the pairing-wait poller (runs at boot)</a></li>
+<li><a href="#claiming">What happens when a customer taps — and why the Pi does nothing</a></li>
+<li><a href="#troubleshoot">If something doesn't work</a></li>
+</ol>
+</div>
+
+<hr>
+
+<h2 id="bigpicture">1. The big picture</h2>
+
+<p>Before either piece of code makes sense, it helps to see the whole sequence of events an NFC tag goes through in this system:</p>
+
+<div class="step-box">
+<p><span class="callout-num">1</span><strong>Device setup (happens once, by you, with a screwdriver in hand):</strong> the Pi already has a <code>pairingId</code> (a random ID it generated for itself the first time it ever booted, saved in <code>pairing_id.txt</code>). You run Piece 1 — the tag-writing script — one time, which writes a link containing that <code>pairingId</code> onto the physical NFC tag.</p>
+
+<p><span class="callout-num">2</span><strong>Every time the Pi boots after that</strong> (until it's paired), it runs Piece 2 — a loop that keeps asking the backend "has anyone paired with me yet?" This is necessary because, unlike the QR-code flow, the Pi itself never makes the pairing request — the <em>shop owner's phone</em> does, after they tap the tag. The Pi has to find out some other way.</p>
+
+<p><span class="callout-num">3</span><strong>The shop owner taps their phone to the tag.</strong> Their phone reads the link, opens the eSal app, the app attaches their login, and the app calls the backend directly to complete pairing.</p>
+
+<p><span class="callout-num">4</span><strong>The Pi's Piece 2 loop notices pairing succeeded</strong> (within a few seconds), grabs its new API key from the backend, and saves it. The Pi is now a fully working device.</p>
+
+<p><span class="callout-num">5</span><strong>Later, any customer taps the exact same tag</strong> to claim a receipt. The Pi is not involved in this step at all — covered in section 4.</p>
+</div>
+
+<p>So: one script writes the tag (once), one function waits to hear about pairing (every boot, until paired), and after that, the tag just sits there being read by customers with zero further Pi involvement.</p>
+
+<hr>
+
+<h2 id="piece1">2. Piece 1 — the tag-writing script</h2>
+<span class="piece-badge">Runs once, by hand, during setup</span>
+
+<p>An NFC tag doesn't just "contain a link" the way you might paste a URL into a text file. Phones only recognize a link on a tag if it's wrapped in a specific, standardized format called <strong>NDEF</strong> (NFC Data Exchange Format). This script's whole job is building that exact byte structure and writing it onto the tag through the PN532 reader/writer.</p>
+
+<h3>Why the bytes have to look a very particular way</h3>
+
+<p>Think of it like an envelope inside an envelope:</p>
+<table>
+<tr><th>Layer</th><th>What it is</th><th>Why it exists</th></tr>
+<tr><td>Outer: the <strong>TLV wrapper</strong></td><td>A tiny header (<code>0x03</code>, then a length byte) around the whole message, ending in a "terminator" byte (<code>0xFE</code>)</td><td>This is how any NFC Forum "Type 2" tag (which includes your NTAG215) marks where its actual data starts and ends in memory</td></tr>
+<tr><td>Inner: the <strong>NDEF record</strong></td><td>A header byte, then "this is type U (URI)", then the actual link</td><td>This is how a phone knows <em>what kind</em> of data it just read — a URI, versus a phone number, versus plain text, etc.</td></tr>
+<tr><td>Innermost: the <strong>URI payload</strong></td><td>A single code byte meaning "this starts with https://", followed by the rest of the URL</td><td>Saves space — instead of spelling out "https://" every time, there's a 1-byte shorthand for common prefixes</td></tr>
+</table>
+
+<h3>The code, piece by piece</h3>
+
+<p><strong>Building the innermost part — the URI record:</strong></p>
+<pre><code>def build_ndef_uri_message(url: str) -> bytes:
+    prefixes = {
+        "http://www.": 0x01,
+        "https://www.": 0x02,
+        "http://": 0x03,
+        "https://": 0x04,
+    }
+    code = 0x00
+    rest = url
+    for prefix, abbrev_code in prefixes.items():
+        if url.startswith(prefix):
+            code = abbrev_code
+            rest = url[len(prefix):]
+            break
+
+    payload = bytes([code]) + rest.encode("utf-8")
+    record_type = b"U"
+
+    header = 0xD1
+    return bytes([header, len(record_type), len(payload)]) + record_type + payload</code></pre>
+
+<p>Walking through this: our URL starts with <code>"https://"</code>, so <code>code</code> becomes <code>0x04</code> and <code>rest</code> becomes everything after those 8 characters (e.g. <code>esal.app/nfc?pairingId=...</code>). The <code>payload</code> is just that one code byte glued to the rest of the URL's actual bytes. <code>header = 0xD1</code> is a fixed value that means, in order: "I am the first record in this message, I am also the last record (there's only one), this is a short record, and my type is a well-known NFC Forum type." You don't need to memorize that byte — it's always the same for a single, simple URI record like this one.</p>
+
+<div class="note">
+<strong>Why bother with the abbreviation code at all?</strong> Because tags have limited memory. Your NTAG215 has 504 usable bytes — not a lot. Shaving 7 characters off every single write by using a 1-byte code instead of spelling out "https://" is a real, standard practice, not a micro-optimization nobody uses.
+</div>
+
+<p><strong>Wrapping it in the TLV envelope:</strong></p>
+<pre><code>def build_type2_tlv(ndef_message: bytes) -> bytes:
+    tlv = bytes([0x03, len(ndef_message)]) + ndef_message
+    tlv += bytes([0xFE])
+    return tlv</code></pre>
+
+<p><code>0x03</code> is a fixed value meaning "an NDEF message follows." The next byte says how many bytes that message is. Then the message itself. Then <code>0xFE</code> says "nothing more to read after this." This whole function is just gluing 2 bytes on the front and 1 byte on the end — the actual content was already built by the previous function.</p>
+
+<p><strong>Actually writing it to the physical tag:</strong></p>
+<pre><code>def write_tag(pn532, data: bytes, start_page: int = 4):
+    remainder = len(data) % 4
+    if remainder:
+        data = data + bytes(4 - remainder)
+
+    page_count = len(data) // 4
+    for i in range(page_count):
+        page = start_page + i
+        block = data[i * 4:(i + 1) * 4]
+        if not pn532.ntag2xx_write_block(page, block):
+            raise RuntimeError(f"Failed writing page {page}")
+    print(f"[+] Wrote {page_count} pages starting at page {start_page}")</code></pre>
+
+<p>Here's the one physical quirk this deals with: NTAG215 memory isn't one continuous strip you can write freely — it's organized into fixed <strong>4-byte pages</strong>, and you can only write a whole page at a time. Our TLV-wrapped data is probably not an exact multiple of 4 bytes long, so the first few lines pad it out with zero bytes until it is. Then the loop writes it 4 bytes at a time, starting at <strong>page 4</strong> — pages 0 through 3 are reserved by the tag itself for its UID and configuration, so user data always starts at page 4 on this tag family.</p>
+
+<p><strong>Tying it together — the <code>main()</code> function:</strong></p>
+<pre><code>def main():
+    with open(PAIRING_ID_FILE, "r") as f:
+        pairing_id = f.read().strip()
+
+    url = f"{NFC_LINK_PREFIX}{pairing_id}"
+    tlv_data = build_type2_tlv(build_ndef_uri_message(url))
+
+    i2c = busio.I2C(board.SCL, board.SDA)
+    reset_pin = DigitalInOut(RESET_PIN)
+    req_pin = DigitalInOut(REQ_PIN)
+    pn532 = PN532_I2C(i2c, debug=False, reset=reset_pin, req=req_pin)
+
+    pn532.SAM_configuration()
+
+    uid = None
+    while uid is None:
+        uid = pn532.read_passive_target(timeout=0.5)
+
+    write_tag(pn532, tlv_data)</code></pre>
+
+<p>This reads the Pi's own <code>pairing_id.txt</code> (the same ID it already made for itself), builds the full link, turns it into the TLV bytes using the two functions above, connects to the PN532 exactly like your earlier tag-identifying script did, waits until a tag is actually placed near the antenna, and then writes. Nothing here is new machinery — it's the same PN532 connection code you've already used, plus the byte-building functions explained above.</p>
+
+<hr>
+
+<h2 id="piece2">3. Piece 2 — the pairing-wait poller</h2>
+<span class="piece-badge">Runs every boot, until the device is paired</span>
+
+<p>Recall from the QR-code flow: when a customer scans a QR code, the <strong>Pi itself</strong> sends the pairing request to the backend, and gets the API key back directly in that same response — simple, synchronous, done.</p>
+
+<p>NFC pairing doesn't work that way. The <strong>phone</strong> is the one that reads the tag and calls the backend — the Pi is never part of that phone call at all. So the Pi has no direct way to know the moment pairing happens. The only option left is to keep asking: <em>"hey backend, has anyone paired with my pairingId yet?"</em> — over and over, a few seconds apart, until the answer is yes.</p>
+
+<pre><code>def wait_for_nfc_pairing(pairing_id, poll_interval=3, timeout=None):
+    elapsed = 0
+    while timeout is None or elapsed < timeout:
+        try:
+            response = requests.get(
+                f"{BACKEND_URL}/devices/pair/status",
+                params={"pairingId": pairing_id},
+                timeout=10,
+            )
+            response.raise_for_status()
+            data = response.json()
+            if data.get("paired") and "apiKey" in data:
+                return data["apiKey"]
+        except requests.exceptions.RequestException as e:
+            print(f"[!] Status check failed, retrying: {e}")
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+    return None</code></pre>
+
+<p>Reading this loop in plain language: "ask the backend about this pairingId. If it says paired and hands back an API key, we're done — return it immediately. If the request fails for any reason (network hiccup, backend briefly down), don't crash — just print a warning and try again in a few seconds. Keep doing this forever, unless a timeout was given and we've hit it."</p>
+
+<div class="note">
+<strong>Why check for both <code>"paired"</code> and <code>"apiKey"</code> together?</strong> Because the backend's status endpoint only hands back the API key <em>the first time</em> it's asked after pairing succeeds — every question after that just says "yes, paired" with no key attached (that's a deliberate security measure, so the key can't be stolen by someone else who happens to read the same tag later). Checking for both means this function only returns once it actually has something useful to save — a bare "yes" with no key isn't treated as success here.
+</div>
+
+<pre><code>def run_nfc_pairing_flow():
+    pairing_id = get_or_create_pairing_id()
+    red_led.blink(on_time=0.5, off_time=0.5)
+
+    api_key = wait_for_nfc_pairing(pairing_id)
+
+    red_led.off()
+    if not api_key:
+        red_led.blink(on_time=0.1, off_time=0.1)
+        return False
+
+    with open(API_KEY_FILE, "w") as f:
+        f.write(api_key)
+
+    green_led.on()
+    return True</code></pre>
+
+<p>This is the outer wrapper, and it should look familiar — it's deliberately built to feel almost identical to the existing QR pairing flow: slow red blink while waiting, LED off once something happens, fast red blink on failure, solid green plus saving the key on success. The <em>only</em> thing that's different from the QR version is what happens in the middle — instead of listening on the UART for a scanned code, it calls the polling function above and waits for that to return something.</p>
+
+<hr>
+
+<h2 id="claiming">4. What happens when a customer taps — and why the Pi does nothing</h2>
+
+<p>This is worth stating plainly because it's easy to assume there must be more Pi-side code somewhere for this: <strong>there isn't.</strong> Once Piece 1 has written the tag one time, the Pi's job with respect to that tag is finished, permanently. Every time a customer taps it afterward:</p>
+
+<div class="step-box">
+<p>Their phone reads the same link off the tag &rarr; opens the eSal app &rarr; the app attaches <em>that customer's</em> login &rarr; the app calls the backend directly, asking it to find the most recent unclaimed receipt for that device and assign it to them.</p>
+</div>
+
+<p>The Pi is never contacted, never polled, never involved. It doesn't need to know a receipt was claimed, the same way it never needed to know that for the QR-based claiming flow's edge cases either — the backend and the database are what track claim status; the Pi only ever cares about "what's the most recent receipt I created," which gets naturally overwritten by the next one regardless of what happened to the last one.</p>
+
+<hr>
+
+<h2 id="troubleshoot">5. If something doesn't work</h2>
+
+<table>
+<tr><th>Symptom</th><th>Likely cause</th></tr>
+<tr><td>Write script fails / hangs</td><td>Same as your earlier tag-identifying script — check wiring (SDA/SCL/RSTPD_N/REQ) and that the tag is actually within range</td></tr>
+<tr><td>Write succeeds, but no generic NFC app recognizes it as a link</td><td>The tag's "Capability Container" (page 3) might not be set — consumer NTAG215 cards almost always ship pre-formatted for this, so it's an unlikely but possible first thing to check</td></tr>
+<tr><td>Poller runs forever, never succeeds</td><td>Confirm the shop owner's phone actually completed the tap-to-pair flow, and that <code>NFC_LINK_PREFIX</code> in the write script matches your app's real Universal Link domain — a placeholder domain with no real app association will just open a browser instead of your app</td></tr>
+</table>
+
+</body>
+</html>
