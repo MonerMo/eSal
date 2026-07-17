@@ -40,7 +40,7 @@ Built for the **AMAD Hackathon 2026**, sponsored by **Alinma Bank** and **Tuwaiq
 
 ## 🟢 Overview
 
-**eSal** ("سَال" — Arabic for *flowed / streamed*, also styled as *Smart Receipt*) is a centralized receipt-management platform that intercepts printed POS receipts at the point of sale, digitizes them instantly, and delivers structured, AI-categorized spending insights straight to the customer's phone — no app-hunting, no paper, no manual entry.
+**eSal** ("إيصال" — Arabic for *flowed / streamed*, also styled as *Smart Receipt*) is a centralized receipt-management platform that intercepts printed POS receipts at the point of sale, digitizes them instantly, and delivers structured, AI-categorized spending insights straight to the customer's phone — no app-hunting, no paper, no manual entry.
 
 A small hardware "puck" sits inline with the merchant's existing receipt printer. The moment a receipt is printed, eSal captures it, matches it to the customer (via an NFC tap or a QR scan), and pushes a clean digital record to their iOS app and Apple Wallet — while the backend builds a running picture of the customer's spending habits.
 
