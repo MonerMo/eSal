@@ -128,4 +128,15 @@ model Category {
   id        String     @id @default(uuid())
   name      String     @unique
   lineItems LineItem[]
+  coupons   Coupon[]
+}
+
+model Coupon {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  imageUrl    String?
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime @default(now())
 }

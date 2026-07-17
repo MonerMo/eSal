@@ -12,4 +12,10 @@ export class InsightsController {
   getInsights(@Req() req, @Query() query: GetInsightsQueryDto) {
     return this.insightsService.getInsights(req.user.userId, query.range);
   }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('analysis')
+  getAnalysis(@Req() req) {
+    return this.insightsService.getAnalysis(req.user.userId);
+  }
 }

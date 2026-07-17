@@ -59,4 +59,49 @@ export class InsightsService {
       })),
     };
   }
+
+  async getAnalysis(userId: string) {
+    const createdAt = this.getRangeBounds('thisMonth');
+
+    const [categoryTotals, categories, paymentGroups] = await Promise.all([
+      this.prismaRepo.lineItem.groupBy({
+        by: ['categoryId'],
+        where: { receipt: { userId, createdAt } },
+        _sum: { totalPrice: true },
+        orderBy: { _sum: { totalPrice: 'desc' } },
+        take: 1,
+      }),
+      this.prismaRepo.category.findMany(),
+      this.prismaRepo.receipt.groupBy({
+        by: ['paymentMethod'],
+        where: { userId, createdAt, paymentMethod: { not: null } },
+        _count: { paymentMethod: true },
+        orderBy: { _count: { paymentMethod: 'desc' } },
+      }),
+    ]);
+
+    const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+
+    const advice =
+      categoryTotals.length > 0 && categoryTotals[0].categoryId
+        ? `Your biggest spending category this month is ${categoryNameById.get(
+            categoryTotals[0].categoryId,
+          )} at $${Number(categoryTotals[0]._sum.totalPrice ?? 0).toFixed(
+            2,
+          )}. Keeping an eye on this category could help you save more.`
+        : "You haven't recorded any spending yet this month.";
+
+    const totalPayments = paymentGroups.reduce(
+      (sum, g) => sum + g._count.paymentMethod,
+      0,
+    );
+    const paymentPattern =
+      paymentGroups.length > 0
+        ? `You paid with ${paymentGroups[0].paymentMethod} in ${Math.round(
+            (paymentGroups[0]._count.paymentMethod / totalPayments) * 100,
+          )}% of your purchases this month.`
+        : 'No payment method data recorded yet this month.';
+
+    return { advice, paymentPattern };
+  }
 }

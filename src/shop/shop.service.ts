@@ -266,6 +266,73 @@ export class ShopService {
     };
   }
 
+  async getShopAnalysis(storeId: string) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const [thisMonthAgg, lastMonthAgg, receiptsForPatterns] = await Promise.all(
+      [
+        this.prismaRepo.receipt.aggregate({
+          where: { device: { storeId }, createdAt: { gte: startOfMonth } },
+          _sum: { total: true },
+        }),
+        this.prismaRepo.receipt.aggregate({
+          where: {
+            device: { storeId },
+            createdAt: { gte: startOfLastMonth, lt: startOfMonth },
+          },
+          _sum: { total: true },
+        }),
+        this.prismaRepo.receipt.findMany({
+          where: { device: { storeId } },
+          select: { lineItems: { select: { name: true } } },
+        }),
+      ],
+    );
+
+    const thisMonthTotal = Number(thisMonthAgg._sum.total ?? 0);
+    const lastMonthTotal = Number(lastMonthAgg._sum.total ?? 0);
+
+    let advice: string;
+    if (lastMonthTotal > 0) {
+      const changePct = Math.round(
+        ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100,
+      );
+      advice =
+        changePct >= 0
+          ? `Revenue is up ${changePct}% compared to last month.`
+          : `Revenue is down ${Math.abs(changePct)}% compared to last month - consider a promotion to bring customers back.`;
+    } else {
+      advice = `You've made $${thisMonthTotal.toFixed(2)} in revenue this month so far.`;
+    }
+
+    const pairCounts = new Map<string, number>();
+    for (const receipt of receiptsForPatterns) {
+      const names = [...new Set(receipt.lineItems.map((li) => li.name))];
+      for (let i = 0; i < names.length; i++) {
+        for (let j = i + 1; j < names.length; j++) {
+          const key = [names[i], names[j]].sort().join(' :: ');
+          pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+        }
+      }
+    }
+
+    let pattern = 'Not enough data yet to detect buying patterns.';
+    let topPair: [string, number] | null = null;
+    for (const [key, count] of pairCounts) {
+      if (count >= 2 && (!topPair || count > topPair[1])) {
+        topPair = [key, count];
+      }
+    }
+    if (topPair) {
+      const [a, b] = topPair[0].split(' :: ');
+      pattern = `Customers who buy ${a} often also buy ${b} - they've appeared together in ${topPair[1]} receipts.`;
+    }
+
+    return { advice, pattern };
+  }
+
   async getShopDevices(storeId: string) {
     return this.prismaRepo.device.findMany({
       where: { storeId },

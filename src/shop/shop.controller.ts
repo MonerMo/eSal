@@ -39,6 +39,11 @@ export class ShopController {
     return this.shopService.getShopInsights(req.user.storeId, query.range);
   }
 
+  @Get('analysis')
+  getAnalysis(@Req() req) {
+    return this.shopService.getShopAnalysis(req.user.storeId);
+  }
+
   @Get('devices')
   getDevices(@Req() req) {
     return this.shopService.getShopDevices(req.user.storeId);
