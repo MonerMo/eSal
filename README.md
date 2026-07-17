@@ -204,19 +204,6 @@ eSal is being built for the **AMAD Hackathon 2026**, sponsored by **Alinma Bank*
 
 ---
 
-## 🗺 Roadmap
-
-- [x] PCB design (KiCad) — schematic, layout, footprint assignment
-- [x] Enclosure design (Fusion 360)
-- [x] NFC pairing architecture (NDEF / Universal Links)
-- [x] Prisma schema (9 core tables)
-- [x] Apple Wallet integration (`passkit-generator`)
-- [ ] Full ESC/POS parser hardening
-- [ ] AI-driven spending insights engine
-- [ ] Public demo deployment
-
----
-
 ## 📄 License
 
 This project is released under the [MIT License](LICENSE).
