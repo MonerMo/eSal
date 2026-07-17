@@ -135,6 +135,16 @@ The puck splits into three printable parts — click any file below on GitHub to
 
 > 💡 GitHub natively renders `.stl` files with an interactive 3D viewer — no extra tooling needed, just open the file in the repo.
 
+### Build Photos
+
+<img src="assets/design1.jpg" alt="PCB routing in KiCad, assembled puck in foreground" width="80%"/>
+
+<img src="assets/pre-assemble.jpg" alt="PN532 NFC module wired to the HAT before final assembly" width="80%"/>
+
+<img src="assets/connection1.jpg" alt="Components assembled inside the enclosure" width="80%"/>
+
+<img src="assets/dev1.jpg" alt="The finished eSal puck" width="80%"/>
+
 ---
 
 ## 🛠 Tech Stack
