@@ -27,6 +27,17 @@ export class ReceiptsService {
     this.openai = new OpenAI({ apiKey });
   }
 
+  // Whatever date/time the AI reads off a receipt is Asia/Riyadh wall-clock
+  // time (fixed UTC+3, no DST) - never true UTC - regardless of whether the
+  // model happens to tack on its own "Z" or offset. Strip any offset it may
+  // have added and reinterpret the remaining digits as Riyadh local time so
+  // the stored value is a genuinely correct UTC instant, same as createdAt.
+  private parseReceiptLocalDateTime(value: string): Date {
+    const naive = value.replace(/(Z|[+-]\d{2}:?\d{2})$/, '');
+    const withTime = naive.includes('T') ? naive : `${naive}T00:00:00`;
+    return new Date(`${withTime}+03:00`);
+  }
+
   private async parseWithAi(rawData: string, receiptId: string) {
     const aiReturnedResponse = await this.openai.responses.parse({
       model: 'gpt-5.4-nano',
@@ -57,7 +68,7 @@ export class ReceiptsService {
         discount: parsed.discount,
         total: parsed.total,
         transactionDate: parsed.transactionDate
-          ? new Date(parsed.transactionDate)
+          ? this.parseReceiptLocalDateTime(parsed.transactionDate)
           : null,
         lineItems: {
           create: parsed.items.map((item) => ({
@@ -66,7 +77,7 @@ export class ReceiptsService {
             unitPrice: item.unitPrice,
             totalPrice: item.totalPrice,
             warrantyEndDate: item.warrantyEndDate
-              ? new Date(item.warrantyEndDate)
+              ? this.parseReceiptLocalDateTime(item.warrantyEndDate)
               : null,
             categoryId: categoryIdByName.get(item.category),
           })),
