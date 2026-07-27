@@ -42,6 +42,12 @@ model User {
   storeId String? @unique
   store   Store?  @relation(fields: [storeId], references: [id])
 
+  emailVerified             Boolean   @default(false)
+  verificationCode          String?
+  verificationCodeExpiresAt DateTime?
+
+  deletedAt DateTime?
+
   receipts Receipt[]
 }
 
@@ -114,7 +120,7 @@ model Receipt {
 model LineItem {
   id              String    @id @default(uuid())
   receiptId       String
-  receipt         Receipt   @relation(fields: [receiptId], references: [id])
+  receipt         Receipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   name            String
   quantity        Decimal
   unitPrice       Decimal

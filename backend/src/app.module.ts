@@ -11,10 +11,13 @@ import { UsersModule } from './users/users.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { InsightsModule } from './insights/insights.module';
 import { ShopModule } from './shop/shop.module';
-
+import { StorageModule } from './storage/storage.module';
+import { MailModule } from './mail/mail.module';
 @Module({
   imports: [
     PrismaModule,
+    StorageModule,
+    MailModule,
     AuthModule,
     ConfigModule.forRoot({ isGlobal: true }),
     ReceiptsModule,

@@ -1,14 +1,20 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from '../../generated/prisma/client';
+import { randomUUID } from 'node:crypto';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class ShopService {
-  constructor(private prismaRepo: PrismaService) {}
+  constructor(
+    private prismaRepo: PrismaService,
+    private storageService: StorageService,
+  ) {}
 
   async getShopReceipts(
     storeId: string,
@@ -343,5 +349,40 @@ export class ShopService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async createLogoUploadUrl(storeId: string, contentType: string) {
+    const extension = contentType.split('/')[1];
+    const key = `stores/${storeId}/logo-${randomUUID()}.${extension}`;
+
+    const uploadUrl = await this.storageService.createUploadUrl(
+      key,
+      contentType,
+    );
+    return { uploadUrl, key };
+  }
+
+  async confirmLogoUpload(storeId: string, key: string) {
+    if (!key.startsWith(`stores/${storeId}`)) {
+      throw new ForbiddenException('This upload does not belong to your store');
+    }
+
+    const size = await this.storageService.getObjectSize(key);
+    if (size === null) {
+      throw new BadRequestException(
+        'Upload Not Found - make sure the upload finished before confirming',
+      );
+    }
+
+    if (size === 0) {
+      throw new BadRequestException('Uploaded file is empty');
+    }
+
+    const logoUrl = this.storageService.getPublicUrl(key);
+    await this.prismaRepo.store.update({
+      where: { id: storeId },
+      data: { logoUrl },
+    });
+    return { logoUrl };
   }
 }

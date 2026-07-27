@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './JwtStrategy/jwt.strategy';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { JwtStrategy } from './JwtStrategy/jwt.strategy';
         signOptions: { expiresIn: '1d' },
       }),
     }),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
